@@ -42,7 +42,49 @@ func LoadConfig(filename string) (Config, error) {
 }
 
 func (c Config) Validate() error {
+	// Make sure there is at least one job
+	if len(c.Jobs) == 0 {
+		return fmt.Errorf("no jobs found in config")
+	}
+
+	// Make sure every job has a non-empty source table
+	for _, job := range c.Jobs {
+		if job.Source.Table == "" {
+			return fmt.Errorf("job %s has no source table", job.Name)
+		}
+	}
+
+	// Make sure every job has at least one target
+	for _, job := range c.Jobs {
+		if len(job.Targets) == 0 {
+			return fmt.Errorf("job %s has no targets", job.Name)
+		}
+	}
+
+	// Make sure every target has a non-empty table
+	for _, job := range c.Jobs {
+		for i, target := range job.Targets {
+			if target.Table == "" {
+				return fmt.Errorf("job %s, target[%d] with no table", job.Name, i)
+			}
+		}
+	}
+
+	// TODO: what else makes sense to validate?
+
+	return nil
+}
+
+func (c Config) Ping() error {
 	return nil // TODO:
+}
+
+func (c Config) ValidateAndPing() error {
+	if err := c.Validate(); err != nil {
+		return err
+	}
+
+	return c.Ping()
 }
 
 func loadConfig(fileContents string) (Config, error) {

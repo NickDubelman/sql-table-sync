@@ -18,7 +18,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.ValidateAndPing(); err != nil {
 		log.Fatal(err)
 	}
 

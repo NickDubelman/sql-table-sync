@@ -85,3 +85,49 @@ func TestLoadConfig(t *testing.T) {
 		assert.ErrorAs(t, err, &typeErr)
 	})
 }
+
+func TestValidateConfig(t *testing.T) {
+	t.Run("no jobs", func(t *testing.T) {
+		cfg := Config{}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "no jobs found in config")
+	})
+
+	t.Run("job with no source table", func(t *testing.T) {
+		cfg := Config{
+			Jobs: []JobConfig{
+				{Name: "users", Targets: []TableConfig{{Table: "users2"}}},
+			},
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "job users has no source table")
+	})
+
+	t.Run("job with no targets", func(t *testing.T) {
+		cfg := Config{
+			Jobs: []JobConfig{
+				{Name: "users", Source: TableConfig{Table: "users"}},
+			},
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "job users has no targets")
+	})
+
+	t.Run("target with no table", func(t *testing.T) {
+		cfg := Config{
+			Jobs: []JobConfig{
+				{
+					Name:    "users",
+					Source:  TableConfig{Table: "users"},
+					Targets: []TableConfig{{Table: "abc"}, {Table: ""}},
+				},
+			},
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "job users, target[1] with no table")
+	})
+}
