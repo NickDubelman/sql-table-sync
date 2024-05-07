@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestSync(t *testing.T) {
+func TestSyncTargets(t *testing.T) {
 	source, err := Connect(TableConfig{Driver: "sqlite3", DSN: ":memory:", Table: "users"})
 	require.NoError(t, err)
 
@@ -58,13 +59,18 @@ func TestSync(t *testing.T) {
 
 	// table2 has no data
 
-	err = sync(
+	results, err := syncTargets(
 		"id",
 		[]string{"id", "name", "age"},
 		source,
 		targets,
 	)
 	require.NoError(t, err)
+	assert.Len(t, results, 2)
+
+	for _, result := range results {
+		assert.NoError(t, result.Error)
+	}
 
 	// Check that the data was copied to each target
 	for _, table := range targets {
@@ -80,9 +86,12 @@ func TestSync(t *testing.T) {
 			data = append(data, cols)
 		}
 
+		require.Equal(t, len(expectedData), len(data))
+
 		// Make sure the data is correct
-		for i := range data {
-			for j := range data[i] {
+		for i := range expectedData {
+			require.Len(t, data[i], len(expectedData[i]))
+			for j := range expectedData[i] {
 				require.EqualValues(t, expectedData[i][j], data[i][j])
 			}
 		}
