@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	sq "github.com/Masterminds/squirrel"
 	"gopkg.in/yaml.v3"
 )
 
@@ -75,8 +76,61 @@ func (c Config) Validate() error {
 	return nil
 }
 
+// Ping checks all jobs in the config to ensure that each source and target table:
+//   - is reachable
+//   - has the correct credentials
+//   - exists
+//   - has the expected columns
 func (c Config) Ping() error {
-	return nil // TODO:
+	// Iterate over all jobs and "ping" the source and targets
+	ping := func(table TableConfig, columns []string) error {
+		conn, err := Connect(table)
+		if err != nil {
+			return err
+		}
+
+		query := sq.Select(columns...).From(table.Table).Limit(1)
+		sql, args, err := query.ToSql()
+		if err != nil {
+			return err
+		}
+
+		rows, err := conn.Query(sql, args...)
+		if err != nil {
+			return err
+		}
+
+		defer rows.Close()
+
+		// Close the db connection, just to be safe
+		if err := conn.Close(); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	for _, job := range c.Jobs {
+		if err := ping(job.Source, job.Columns); err != nil {
+			label := job.Source.Label
+			if label == "" {
+				label = "source"
+			}
+			return fmt.Errorf("job %s - %s, cannot ping: %w", job.Name, label, err)
+		}
+
+		for i, target := range job.Targets {
+			if err := ping(target, job.Columns); err != nil {
+				label := target.Label
+				if label == "" {
+					label = fmt.Sprintf("target[%d]", i)
+				}
+				return fmt.Errorf("job %s - %s, cannot ping: %w", job.Name, label, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (c Config) ValidateAndPing() error {

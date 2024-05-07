@@ -24,6 +24,10 @@ func syncTargets(
 	source Table,
 	targets []Table,
 ) (string, []SyncResult, error) {
+	if source.DB == nil {
+		return "", nil, fmt.Errorf("source unreachable")
+	}
+
 	var primaryKeyIndex int
 	var primaryKeyFound bool
 
@@ -98,6 +102,14 @@ func syncTarget(
 	sourceChecksum string,
 	sourceMap map[any][]any,
 ) (string, bool, error) {
+	if target.DB == nil {
+		var err error
+		target, err = Connect(target.Config)
+		if err != nil {
+			return "", false, fmt.Errorf("failed to connect to target: %w", err)
+		}
+	}
+
 	fetchAll := sq.Select(columns...).From(target.Config.Table).OrderBy(primaryKey)
 
 	targetEntries, targetMap, err := getEntries(target, fetchAll, primaryKeyIndex)

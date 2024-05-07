@@ -2,7 +2,6 @@ package sync
 
 import (
 	"fmt"
-	"log"
 )
 
 func (c Config) ExecJob(jobName string) (string, []SyncResult, error) {
@@ -29,12 +28,7 @@ func (c Config) ExecJob(jobName string) (string, []SyncResult, error) {
 	// Attempt to connect to each target
 	targets := make([]Table, len(job.Targets))
 	for i, target := range job.Targets {
-		table, err := Connect(target)
-		if err != nil {
-			log.Printf("failed to connect to target[%d]: %v", i, err)
-		}
-
-		targets[i] = table
+		targets[i] = Table{Config: target}
 	}
 
 	return syncTargets(job.PrimaryKey, job.Columns, source, targets)

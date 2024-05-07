@@ -19,7 +19,7 @@ func main() {
 	}
 
 	if err := cfg.ValidateAndPing(); err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 	}
 
 	if _, _, err = cfg.ExecJob("users"); err != nil {
