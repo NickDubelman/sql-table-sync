@@ -20,6 +20,7 @@ type JobConfig struct {
 }
 
 type TableConfig struct {
+	Label    string
 	Driver   string
 	DSN      string
 	User     string

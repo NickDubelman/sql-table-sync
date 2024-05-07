@@ -1,6 +1,9 @@
 package sync
 
 import (
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -10,6 +13,7 @@ import (
 
 type SyncResult struct {
 	Target Table
+	Synced bool
 	Error  error
 }
 
@@ -38,7 +42,12 @@ func syncTargets(
 	fetchAll := sq.Select(columns...).From(source.Config.Table).OrderBy(primaryKey)
 
 	// Get all rows from the source table and put them in a map by their primary key
-	sourceMap, err := getEntriesAsMap(source, fetchAll, primaryKeyIndex)
+	sourceEntries, sourceMap, err := getEntries(source, fetchAll, primaryKeyIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	sourceChecksum, err := checksumData(sourceEntries)
 	if err != nil {
 		return nil, err
 	}
@@ -50,8 +59,21 @@ func syncTargets(
 		wg.Add(1)
 		go func(target Table) {
 			defer wg.Done()
-			err := syncTarget(target, fetchAll, primaryKey, primaryKeyIndex, columns, sourceMap)
-			resultChan <- SyncResult{Target: target, Error: err}
+			synced, err := syncTarget(
+				target,
+				fetchAll,
+				primaryKey,
+				primaryKeyIndex,
+				columns,
+				sourceChecksum,
+				sourceMap,
+			)
+
+			resultChan <- SyncResult{
+				Target: target,
+				Synced: synced,
+				Error:  err,
+			}
 		}(target)
 	}
 
@@ -73,11 +95,22 @@ func syncTarget(
 	primaryKey string,
 	primaryKeyIndex int,
 	columns []string,
+	sourceChecksum string,
 	sourceMap map[any][]any,
-) error {
-	targetMap, err := getEntriesAsMap(target, fetchAll, primaryKeyIndex)
+) (bool, error) {
+	targetEntries, targetMap, err := getEntries(target, fetchAll, primaryKeyIndex)
 	if err != nil {
-		return err
+		return false, err
+	}
+
+	targetChecksum, err := checksumData(targetEntries)
+	if err != nil {
+		return false, err
+	}
+
+	// If the checksums match, then the data is already in sync
+	if sourceChecksum == targetChecksum {
+		return false, nil
 	}
 
 	tableName := target.Config.Table
@@ -89,7 +122,7 @@ func syncTarget(
 			insert := sq.Insert(tableName).Columns(columns...).Values(val...)
 
 			if _, err := insert.RunWith(target.DB).Exec(); err != nil {
-				return err
+				return false, err
 			}
 		} else {
 			// If the key exists in targetMap, then we need to check if there is a diff
@@ -109,7 +142,7 @@ func syncTarget(
 			}
 
 			if _, err := update.RunWith(target.DB).Exec(); err != nil {
-				return err
+				return false, err
 			}
 
 			// Remove the key from the targetMap to keep track of which rows we need to delete
@@ -122,45 +155,67 @@ func syncTarget(
 		delete := sq.Delete(tableName).Where(sq.Eq{primaryKey: key})
 
 		if _, err := delete.RunWith(target.DB).Exec(); err != nil {
-			return err
+			return false, err
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
-func getEntriesAsMap(
+func checksumData(data [][]any) (string, error) {
+	// Serialize the data to JSON
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	// Compute the MD5 checksum of the JSON data
+	hash := md5.New()
+	_, err = hash.Write(jsonData)
+	if err != nil {
+		return "", err
+	}
+
+	// Convert the checksum to a hexadecimal string
+	checksum := hex.EncodeToString(hash.Sum(nil))
+	return checksum, nil
+}
+
+func getEntries(
 	table Table,
 	query sq.SelectBuilder,
 	primaryKeyIndex int,
-) (map[any][]any, error) {
+) ([][]any, map[any][]any, error) {
 	sql, args, err := query.ToSql()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	rows, err := table.Queryx(sql, args...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defer rows.Close()
 
+	entryList := [][]any{}
 	entryMap := map[any][]any{}
 
 	for rows.Next() {
 		cols, err := rows.SliceScan()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+
+		entryList = append(entryList, cols)
 
 		pk := cols[primaryKeyIndex]
 		entryMap[pk] = cols
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return entryMap, nil
+	return entryList, entryMap, nil
 }

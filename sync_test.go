@@ -9,16 +9,36 @@ import (
 )
 
 func TestSyncTargets(t *testing.T) {
-	source, err := Connect(TableConfig{Driver: "sqlite3", DSN: ":memory:", Table: "users"})
+	source, err := Connect(TableConfig{
+		Driver: "sqlite3",
+		DSN:    ":memory:",
+		Table:  "users",
+	})
 	require.NoError(t, err)
 
-	target1, err := Connect(TableConfig{Driver: "sqlite3", DSN: ":memory:", Table: "users"})
+	target1, err := Connect(TableConfig{
+		Driver: "sqlite3",
+		DSN:    ":memory:",
+		Table:  "users",
+	})
 	require.NoError(t, err)
 
-	target2, err := Connect(TableConfig{Driver: "sqlite3", DSN: ":memory:", Table: "users"})
+	target2, err := Connect(TableConfig{
+		Driver: "sqlite3",
+		DSN:    ":memory:",
+		Table:  "users",
+	})
 	require.NoError(t, err)
 
-	targets := []Table{target1, target2}
+	target3, err := Connect(TableConfig{
+		Label:  "already in sync",
+		Driver: "sqlite3",
+		DSN:    ":memory:",
+		Table:  "users",
+	})
+	require.NoError(t, err)
+
+	targets := []Table{target1, target2, target3}
 
 	// Create a users table in the source and each target
 	for _, table := range append(targets, source) {
@@ -51,6 +71,9 @@ func TestSyncTargets(t *testing.T) {
 	// Insert some data into the source
 	source.MustExec(sql, args...)
 
+	// table3 is already in sync
+	target3.MustExec(sql, args...)
+
 	// Insert some data to update into one of the targets
 	target1.MustExec("INSERT INTO users (id, name, age) VALUES (1, 'Nick', 31)")
 
@@ -66,10 +89,16 @@ func TestSyncTargets(t *testing.T) {
 		targets,
 	)
 	require.NoError(t, err)
-	assert.Len(t, results, 2)
+	assert.Len(t, results, 3)
 
 	for _, result := range results {
 		assert.NoError(t, result.Error)
+
+		if result.Target.Config.Label == "already in sync" {
+			assert.False(t, result.Synced)
+		} else {
+			assert.True(t, result.Synced)
+		}
 	}
 
 	// Check that the data was copied to each target
