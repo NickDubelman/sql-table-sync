@@ -18,6 +18,8 @@ func TestLoadConfig(t *testing.T) {
                 source:
                   driver: sqlite3
                   dsn: ":memory:"
+                  user: nick
+                  password: greatsuccess
                   host: 0.0.0.0
                   port: 3420
                   db: appdb
@@ -42,6 +44,8 @@ func TestLoadConfig(t *testing.T) {
 		source := cfg.Jobs[0].Source
 		assert.Equal(t, "sqlite3", source.Driver)
 		assert.Equal(t, ":memory:", source.DSN)
+		assert.Equal(t, "nick", source.User)
+		assert.Equal(t, "greatsuccess", source.Password)
 		assert.Equal(t, "0.0.0.0", source.Host)
 		assert.Equal(t, 3420, source.Port)
 		assert.Equal(t, "appdb", source.DB)

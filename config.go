@@ -20,12 +20,14 @@ type JobConfig struct {
 }
 
 type TableConfig struct {
-	Driver string
-	DSN    string
-	Host   string
-	Port   int
-	DB     string
-	Table  string
+	Driver   string
+	DSN      string
+	User     string
+	Password string
+	Host     string
+	Port     int
+	DB       string
+	Table    string
 }
 
 func LoadConfig(filename string) (Config, error) {
@@ -35,6 +37,10 @@ func LoadConfig(filename string) (Config, error) {
 	}
 
 	return loadConfig(string(fileBytes))
+}
+
+func (c Config) Validate() error {
+	return nil // TODO:
 }
 
 func loadConfig(fileContents string) (Config, error) {
