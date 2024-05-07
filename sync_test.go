@@ -82,7 +82,7 @@ func TestSyncTargets(t *testing.T) {
 
 	// table2 has no data
 
-	results, err := syncTargets(
+	_, results, err := syncTargets(
 		"id",
 		[]string{"id", "name", "age"},
 		source,

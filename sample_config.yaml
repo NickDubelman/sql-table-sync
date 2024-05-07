@@ -1,0 +1,16 @@
+driver: mysql
+
+jobs:
+  - name: users
+    columns: [id, name, age]
+    source:
+      table: users_source
+      db: app
+      port: 3420
+    targets:
+      - table: users_target1
+        db: app
+        port: 3420
+      - table: users_target2
+        db: app
+        port: 3420

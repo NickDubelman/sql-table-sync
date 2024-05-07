@@ -8,7 +8,8 @@ import (
 )
 
 type Config struct {
-	Jobs []JobConfig
+	Driver string
+	Jobs   []JobConfig
 }
 
 type JobConfig struct {
@@ -52,11 +53,35 @@ func loadConfig(fileContents string) (Config, error) {
 		return Config{}, fmt.Errorf("failed to parse config: %w", err)
 	}
 
+	defaultDriver := config.Driver
+
 	// Impose some default values
 	for i := range config.Jobs {
 		// For each job, if PrimaryKey is empty, set it to "id"
 		if config.Jobs[i].PrimaryKey == "" {
 			config.Jobs[i].PrimaryKey = "id"
+		}
+
+		// For each table, if User is empty, set it to "root"
+		if config.Jobs[i].Source.User == "" {
+			config.Jobs[i].Source.User = "root"
+		}
+
+		for j := range config.Jobs[i].Targets {
+			if config.Jobs[i].Targets[j].User == "" {
+				config.Jobs[i].Targets[j].User = "root"
+			}
+		}
+
+		// For each table, if Driver is empty, set it to the default driver
+		if config.Jobs[i].Source.Driver == "" {
+			config.Jobs[i].Source.Driver = defaultDriver
+		}
+
+		for j := range config.Jobs[i].Targets {
+			if config.Jobs[i].Targets[j].Driver == "" {
+				config.Jobs[i].Targets[j].Driver = defaultDriver
+			}
 		}
 	}
 

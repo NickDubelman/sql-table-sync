@@ -12,9 +12,10 @@ import (
 )
 
 type SyncResult struct {
-	Target Table
-	Synced bool
-	Error  error
+	Target         Table
+	TargetChecksum string
+	Synced         bool
+	Error          error
 }
 
 func syncTargets(
@@ -22,7 +23,7 @@ func syncTargets(
 	columns []string,
 	source Table,
 	targets []Table,
-) ([]SyncResult, error) {
+) (string, []SyncResult, error) {
 	var primaryKeyIndex int
 	var primaryKeyFound bool
 
@@ -36,7 +37,7 @@ func syncTargets(
 	}
 
 	if !primaryKeyFound {
-		return nil, fmt.Errorf("primary key '%s' not found in columns", primaryKey)
+		return "", nil, fmt.Errorf("primary key '%s' not found in columns", primaryKey)
 	}
 
 	fetchAll := sq.Select(columns...).From(source.Config.Table).OrderBy(primaryKey)
@@ -44,12 +45,12 @@ func syncTargets(
 	// Get all rows from the source table and put them in a map by their primary key
 	sourceEntries, sourceMap, err := getEntries(source, fetchAll, primaryKeyIndex)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	sourceChecksum, err := checksumData(sourceEntries)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	var wg sync.WaitGroup
@@ -59,9 +60,8 @@ func syncTargets(
 		wg.Add(1)
 		go func(target Table) {
 			defer wg.Done()
-			synced, err := syncTarget(
+			checksum, synced, err := syncTarget(
 				target,
-				fetchAll,
 				primaryKey,
 				primaryKeyIndex,
 				columns,
@@ -70,9 +70,10 @@ func syncTargets(
 			)
 
 			resultChan <- SyncResult{
-				Target: target,
-				Synced: synced,
-				Error:  err,
+				Target:         target,
+				TargetChecksum: checksum,
+				Synced:         synced,
+				Error:          err,
 			}
 		}(target)
 	}
@@ -86,31 +87,32 @@ func syncTargets(
 		results = append(results, result)
 	}
 
-	return results, nil
+	return sourceChecksum, results, nil
 }
 
 func syncTarget(
 	target Table,
-	fetchAll sq.SelectBuilder,
 	primaryKey string,
 	primaryKeyIndex int,
 	columns []string,
 	sourceChecksum string,
 	sourceMap map[any][]any,
-) (bool, error) {
+) (string, bool, error) {
+	fetchAll := sq.Select(columns...).From(target.Config.Table).OrderBy(primaryKey)
+
 	targetEntries, targetMap, err := getEntries(target, fetchAll, primaryKeyIndex)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
 
 	targetChecksum, err := checksumData(targetEntries)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
 
 	// If the checksums match, then the data is already in sync
 	if sourceChecksum == targetChecksum {
-		return false, nil
+		return targetChecksum, false, nil
 	}
 
 	tableName := target.Config.Table
@@ -122,15 +124,19 @@ func syncTarget(
 			insert := sq.Insert(tableName).Columns(columns...).Values(val...)
 
 			if _, err := insert.RunWith(target.DB).Exec(); err != nil {
-				return false, err
+				return "", false, err
 			}
 		} else {
 			// If the key exists in targetMap, then we need to check if there is a diff
+
+			// Remove the key from the targetMap (to keep track of which rows we need to delete)
+			delete(targetMap, key)
+
 			if cmp.Equal(val, targetMap[key]) {
 				continue // No diff, so we skip this row
 			}
 
-			// Perform an UPDATE
+			// There is a diff, perform an UPDATE
 			update := sq.Update(tableName).Where(sq.Eq{primaryKey: key})
 
 			for i, col := range columns {
@@ -142,11 +148,8 @@ func syncTarget(
 			}
 
 			if _, err := update.RunWith(target.DB).Exec(); err != nil {
-				return false, err
+				return "", false, err
 			}
-
-			// Remove the key from the targetMap to keep track of which rows we need to delete
-			delete(targetMap, key)
 		}
 	}
 
@@ -155,11 +158,11 @@ func syncTarget(
 		delete := sq.Delete(tableName).Where(sq.Eq{primaryKey: key})
 
 		if _, err := delete.RunWith(target.DB).Exec(); err != nil {
-			return false, err
+			return "", false, err
 		}
 	}
 
-	return true, nil
+	return targetChecksum, true, nil
 }
 
 func checksumData(data [][]any) (string, error) {
@@ -171,8 +174,7 @@ func checksumData(data [][]any) (string, error) {
 
 	// Compute the MD5 checksum of the JSON data
 	hash := md5.New()
-	_, err = hash.Write(jsonData)
-	if err != nil {
+	if _, err := hash.Write(jsonData); err != nil {
 		return "", err
 	}
 

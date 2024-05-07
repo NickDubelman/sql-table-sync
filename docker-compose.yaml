@@ -1,0 +1,9 @@
+services:
+  mysql57:
+    image: mysql:5.7
+    platform: linux/amd64
+    ports:
+      - '3420:3306'
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      MYSQL_DATABASE: app

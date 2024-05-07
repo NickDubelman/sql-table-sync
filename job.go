@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-func (c Config) ExecJob(jobName string) ([]SyncResult, error) {
+func (c Config) ExecJob(jobName string) (string, []SyncResult, error) {
 	// Find the job with the given name
 	var job JobConfig
 	for _, j := range c.Jobs {
@@ -17,13 +17,13 @@ func (c Config) ExecJob(jobName string) ([]SyncResult, error) {
 
 	// If no matching job was found, return an error
 	if job.Name == "" {
-		return nil, fmt.Errorf("job '%s' not found in config", jobName)
+		return "", nil, fmt.Errorf("job '%s' not found in config", jobName)
 	}
 
 	// Connect to source
 	source, err := Connect(job.Source)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to source: %w", err)
+		return "", nil, fmt.Errorf("failed to connect to source: %w", err)
 	}
 
 	// Attempt to connect to each target

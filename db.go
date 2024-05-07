@@ -27,8 +27,9 @@ func Connect(config TableConfig) (Table, error) {
 			cfg.Passwd = config.Password
 			cfg.Addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
 			cfg.DBName = config.DB
+			cfg.Net = "tcp"
 
-			dsn = mysql.NewConfig().FormatDSN()
+			dsn = cfg.FormatDSN()
 		} else if config.Driver == "sqlite3" {
 			return table, fmt.Errorf("for sqlite3, DSN must be provided directly")
 		} else {

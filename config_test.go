@@ -14,7 +14,7 @@ func TestLoadConfig(t *testing.T) {
             jobs:
               - name: users
                 columns: [id, name, age]
-                primaryKey: id # make this optional (default = id)
+                primaryKey: id
                 source:
                   driver: sqlite3
                   dsn: ":memory:"
