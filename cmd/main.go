@@ -22,8 +22,11 @@ func main() {
 		fmt.Println(err)
 	}
 
-	if _, _, err = cfg.ExecJob("users"); err != nil {
-		log.Fatal(err)
+	_, errs := cfg.ExecAllJobs()
+	for _, err := range errs {
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
 

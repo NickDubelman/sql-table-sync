@@ -2,7 +2,12 @@ package sync
 
 import "fmt"
 
-func (c Config) ExecJob(jobName string) (string, []SyncResult, error) {
+type ExecJobResult struct {
+	Checksum string
+	Results  []SyncResult
+}
+
+func (c Config) ExecJob(jobName string) (ExecJobResult, error) {
 	// Find the job with the given name
 	var job JobConfig
 	for _, j := range c.Jobs {
@@ -14,7 +19,7 @@ func (c Config) ExecJob(jobName string) (string, []SyncResult, error) {
 
 	// If no matching job was found, return an error
 	if job.Name == "" {
-		return "", nil, fmt.Errorf("job '%s' not found in config", jobName)
+		return ExecJobResult{}, fmt.Errorf("job '%s' not found in config", jobName)
 	}
 
 	primaryKeyIndices := job.getPrimaryKeyIndices()
@@ -36,5 +41,19 @@ func (c Config) ExecJob(jobName string) (string, []SyncResult, error) {
 		}
 	}
 
-	return syncTargets(source, targets)
+	checksum, results, err := syncTargets(source, targets)
+	return ExecJobResult{checksum, results}, err
+}
+
+func (c Config) ExecAllJobs() ([]ExecJobResult, []error) {
+	results := make([]ExecJobResult, len(c.Jobs))
+	errors := make([]error, len(c.Jobs))
+
+	for i, job := range c.Jobs {
+		result, err := c.ExecJob(job.Name)
+		results[i] = result
+		errors[i] = err
+	}
+
+	return results, errors
 }
