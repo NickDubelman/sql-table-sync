@@ -95,19 +95,20 @@ func (c Config) Validate() error {
 //   - has the expected columns
 func (c Config) Ping() error {
 	// Iterate over all jobs and "ping" the source and targets
-	ping := func(table TableConfig, columns []string) error {
-		conn, err := Connect(table)
-		if err != nil {
+	ping := func(config TableConfig, columns []string) error {
+		table := Table{Config: config}
+		if err := table.connect(); err != nil {
 			return err
 		}
 
-		query := sq.Select(columns...).From(table.Table).Limit(1)
+		// Make sure we can query the table
+		query := sq.Select(columns...).From(config.Table).Limit(1)
 		sql, args, err := query.ToSql()
 		if err != nil {
 			return err
 		}
 
-		rows, err := conn.Query(sql, args...)
+		rows, err := table.Query(sql, args...)
 		if err != nil {
 			return err
 		}
@@ -115,7 +116,7 @@ func (c Config) Ping() error {
 		defer rows.Close()
 
 		// Close the db connection, just to be safe
-		if err := conn.Close(); err != nil {
+		if err := table.Close(); err != nil {
 			return err
 		}
 

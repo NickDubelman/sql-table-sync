@@ -26,9 +26,7 @@ func syncTargets(
 ) (string, []SyncResult, error) {
 	if source.DB == nil {
 		// Connect to source if it's not already connected
-		var err error
-		source, err = Connect(source.Config)
-		if err != nil {
+		if err := source.connect(); err != nil {
 			return "", nil, fmt.Errorf("failed to connect to source: %w", err)
 		}
 	}
@@ -105,9 +103,7 @@ func syncTarget(
 	sourceMap map[primaryKeyTuple][]any,
 ) (string, bool, error) {
 	if target.DB == nil {
-		var err error
-		target, err = Connect(target.Config)
-		if err != nil {
+		if err := target.connect(); err != nil {
 			return "", false, fmt.Errorf("failed to connect to target: %w", err)
 		}
 	}

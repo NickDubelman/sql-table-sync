@@ -10,33 +10,49 @@ import (
 )
 
 func TestSyncTargets(t *testing.T) {
-	source, err := Connect(TableConfig{
-		Driver: "sqlite3",
-		DSN:    ":memory:",
-		Table:  "users",
-	})
+	source := Table{
+		Config: TableConfig{
+			Driver: "sqlite3",
+			DSN:    ":memory:",
+			Table:  "users",
+		},
+	}
+
+	target1 := Table{
+		Config: TableConfig{
+			Driver: "sqlite3",
+			DSN:    ":memory:",
+			Table:  "users",
+		},
+	}
+
+	target2 := Table{
+		Config: TableConfig{
+			Driver: "sqlite3",
+			DSN:    ":memory:",
+			Table:  "users",
+		},
+	}
+
+	target3 := Table{
+		Config: TableConfig{
+			Label:  "already in sync",
+			Driver: "sqlite3",
+			DSN:    ":memory:",
+			Table:  "users",
+		},
+	}
+
+	err := source.connect()
 	require.NoError(t, err)
 
-	target1, err := Connect(TableConfig{
-		Driver: "sqlite3",
-		DSN:    ":memory:",
-		Table:  "users",
-	})
+	err = target1.connect()
 	require.NoError(t, err)
 
-	target2, err := Connect(TableConfig{
-		Driver: "sqlite3",
-		DSN:    ":memory:",
-		Table:  "users",
-	})
+	err = target2.connect()
 	require.NoError(t, err)
 
-	target3, err := Connect(TableConfig{
-		Label:  "already in sync",
-		Driver: "sqlite3",
-		DSN:    ":memory:",
-		Table:  "users",
-	})
+	err = target3.connect()
 	require.NoError(t, err)
 
 	targets := []Table{target1, target2, target3}
@@ -129,18 +145,26 @@ func TestSyncTargets(t *testing.T) {
 }
 
 func TestSyncTargets_multiple_primary_key(t *testing.T) {
-	source, err := Connect(TableConfig{
-		Driver: "sqlite3",
-		DSN:    ":memory:",
-		Table:  "users",
-	})
+	source := Table{
+		Config: TableConfig{
+			Driver: "sqlite3",
+			DSN:    ":memory:",
+			Table:  "users",
+		},
+	}
+
+	target1 := Table{
+		Config: TableConfig{
+			Driver: "sqlite3",
+			DSN:    ":memory:",
+			Table:  "users",
+		},
+	}
+
+	err := source.connect()
 	require.NoError(t, err)
 
-	target1, err := Connect(TableConfig{
-		Driver: "sqlite3",
-		DSN:    ":memory:",
-		Table:  "users",
-	})
+	err = target1.connect()
 	require.NoError(t, err)
 
 	targets := []Table{target1}

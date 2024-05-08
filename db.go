@@ -13,35 +13,33 @@ type Table struct {
 	Config TableConfig
 }
 
-func Connect(config TableConfig) (Table, error) {
-	dsn := config.DSN
+func (t *Table) connect() error {
+	if t.DB != nil {
+		return nil // Already connected
+	}
 
-	table := Table{Config: config}
+	dsn := t.Config.DSN
 
 	if dsn == "" {
 		// If DSN is not directly provided, construct it from the other fields
-		if config.Driver == "mysql" {
+		if t.Config.Driver == "mysql" {
 			cfg := mysql.NewConfig()
 
-			cfg.User = config.User
-			cfg.Passwd = config.Password
-			cfg.Addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
-			cfg.DBName = config.DB
+			cfg.User = t.Config.User
+			cfg.Passwd = t.Config.Password
+			cfg.Addr = fmt.Sprintf("%s:%d", t.Config.Host, t.Config.Port)
+			cfg.DBName = t.Config.DB
 			cfg.Net = "tcp"
 
 			dsn = cfg.FormatDSN()
-		} else if config.Driver == "sqlite3" {
-			return table, fmt.Errorf("for sqlite3, DSN must be provided directly")
+		} else if t.Config.Driver == "sqlite3" {
+			return fmt.Errorf("for sqlite3, DSN must be provided directly")
 		} else {
-			return table, fmt.Errorf("unsupported driver: %s", config.Driver)
+			return fmt.Errorf("unsupported driver: %s", t.Config.Driver)
 		}
 	}
 
-	db, err := sqlx.Connect(config.Driver, dsn)
-	if err != nil {
-		return table, err
-	}
-	table.DB = db
-
-	return table, nil
+	var err error
+	t.DB, err = sqlx.Connect(t.Config.Driver, dsn)
+	return err
 }
