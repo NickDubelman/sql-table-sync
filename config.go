@@ -39,10 +39,19 @@ func LoadConfig(filename string) (Config, error) {
 		return Config{}, err
 	}
 
-	return loadConfig(string(fileBytes))
+	config, err := loadConfig(string(fileBytes))
+	if err != nil {
+		return Config{}, err
+	}
+
+	if err := config.validate(); err != nil {
+		return Config{}, err
+	}
+
+	return config, nil
 }
 
-func (c Config) Validate() error {
+func (c Config) validate() error {
 	// Make sure there is at least one job
 	if len(c.Jobs) == 0 {
 		return fmt.Errorf("no jobs found in config")
@@ -55,14 +64,6 @@ func (c Config) Validate() error {
 	}
 
 	return nil
-}
-
-func (c Config) ValidateAndPing() (PingResult, error) {
-	if err := c.Validate(); err != nil {
-		return PingResult{}, err
-	}
-
-	return c.Ping()
 }
 
 func loadConfig(fileContents string) (Config, error) {

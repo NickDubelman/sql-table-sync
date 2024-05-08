@@ -19,6 +19,7 @@ type JobPingResult struct {
 }
 
 type TablePingResult struct {
+	Label       string
 	TableConfig TableConfig
 	Error       error
 }
@@ -38,7 +39,13 @@ func (c Config) Ping() (PingResult, error) {
 		jobResults[i].Job = job
 
 		// Ping the source table
+		sourceLabel := job.Source.Label
+		if sourceLabel == "" {
+			sourceLabel = "source"
+		}
+
 		jobResults[i].Results = append(jobResults[i].Results, TablePingResult{
+			Label:       sourceLabel,
 			TableConfig: job.Source,
 			Error:       pingWithTimeout(timeout, job.Source, job.Columns),
 		})
@@ -47,16 +54,22 @@ func (c Config) Ping() (PingResult, error) {
 		var wg sync.WaitGroup
 		resultChan := make(chan TablePingResult, len(job.Targets))
 
-		for _, target := range job.Targets {
+		for j, target := range job.Targets {
 			wg.Add(1)
-			go func(target TableConfig) {
+			go func(j int, target TableConfig) {
 				defer wg.Done()
 
+				label := target.Label
+				if label == "" {
+					label = fmt.Sprintf("target %d", j)
+				}
+
 				resultChan <- TablePingResult{
+					Label:       label,
 					TableConfig: target,
 					Error:       pingWithTimeout(timeout, target, job.Columns),
 				}
-			}(target)
+			}(j, target)
 		}
 
 		wg.Wait()         // Wait for all goroutines to finish

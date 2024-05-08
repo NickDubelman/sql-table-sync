@@ -18,13 +18,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	pingResult, err := cfg.ValidateAndPing()
+	pingResult, err := cfg.Ping()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	for _, result := range pingResult.Results {
-		fmt.Println(result)
+	for _, jobResult := range pingResult.Results {
+		for _, result := range jobResult.Results {
+			if result.Error != nil {
+				fmt.Println(jobResult.Job.Name, result.Label, result.Error)
+			}
+		}
 	}
 
 	_, errs := cfg.ExecAllJobs()

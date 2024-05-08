@@ -127,7 +127,7 @@ func TestValidateConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
-			err := tc.config.Validate()
+			err := tc.config.validate()
 			if tc.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
