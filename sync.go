@@ -12,18 +12,13 @@ import (
 )
 
 type SyncResult struct {
-	Target         Table
+	Target         TableConfig
 	TargetChecksum string
 	Synced         bool
 	Error          error
 }
 
-func syncTargets(
-	source Table,
-	targets []Table,
-	primaryKeys []string,
-	columns []string,
-) (string, []SyncResult, error) {
+func syncTargets(source table, targets []table) (string, []SyncResult, error) {
 	if source.DB == nil {
 		// Connect to source if it's not already connected
 		if err := source.connect(); err != nil {
@@ -31,23 +26,8 @@ func syncTargets(
 		}
 	}
 
-	var primaryKeyIndices []int
-
-	// Create a map of column names to their index in the columns slice
-	columnIndices := map[string]int{}
-	for i, col := range columns {
-		columnIndices[col] = i
-	}
-
-	// Determine the indices of the primary keys in the columns slice
-	for _, pk := range primaryKeys {
-		if _, ok := columnIndices[pk]; ok {
-			primaryKeyIndices = append(primaryKeyIndices, columnIndices[pk])
-		}
-	}
-
 	// Get all rows from the source table and put them in a map by their primary key
-	sourceEntries, sourceMap, err := getEntries(source, primaryKeys, primaryKeyIndices, columns)
+	sourceEntries, sourceMap, err := source.getEntries()
 	if err != nil {
 		return "", nil, err
 	}
@@ -62,19 +42,13 @@ func syncTargets(
 
 	for _, target := range targets {
 		wg.Add(1)
-		go func(target Table) {
+		go func(target table) {
 			defer wg.Done()
-			checksum, synced, err := syncTarget(
-				target,
-				primaryKeys,
-				primaryKeyIndices,
-				columns,
-				sourceChecksum,
-				sourceMap,
-			)
+
+			checksum, synced, err := syncTarget(target, sourceChecksum, sourceMap)
 
 			resultChan <- SyncResult{
-				Target:         target,
+				Target:         target.config,
 				TargetChecksum: checksum,
 				Synced:         synced,
 				Error:          err,
@@ -95,10 +69,7 @@ func syncTargets(
 }
 
 func syncTarget(
-	target Table,
-	primaryKeys []string,
-	primaryKeyIndices []int,
-	columns []string,
+	target table,
 	sourceChecksum string,
 	sourceMap map[primaryKeyTuple][]any,
 ) (string, bool, error) {
@@ -108,7 +79,7 @@ func syncTarget(
 		}
 	}
 
-	targetEntries, targetMap, err := getEntries(target, primaryKeys, primaryKeyIndices, columns)
+	targetEntries, targetMap, err := target.getEntries()
 	if err != nil {
 		return "", false, err
 	}
@@ -123,13 +94,13 @@ func syncTarget(
 		return targetChecksum, false, nil
 	}
 
-	tableName := target.Config.Table
+	tableName := target.config.Table
 
 	// Iterate over source rows and perform INSERTs or UPDATEs as needed
 	for key, val := range sourceMap {
 		// If the key doesn't exist in targetMap, then we need to INSERT
 		if _, ok := targetMap[key]; !ok {
-			insert := sq.Insert(tableName).Columns(columns...).Values(val...)
+			insert := sq.Insert(tableName).Columns(target.columns...).Values(val...)
 
 			if _, err := insert.RunWith(target.DB).Exec(); err != nil {
 				return "", false, err
@@ -145,14 +116,16 @@ func syncTarget(
 			}
 
 			// There is a diff, perform an UPDATE
-			update := sq.Update(tableName).Where(key.whereClause(primaryKeys, primaryKeyIndices))
+			update := sq.
+				Update(tableName).
+				Where(key.whereClause(target.primaryKeys, target.primaryKeyIndices))
 
 			pkSet := map[string]struct{}{}
-			for _, pk := range primaryKeys {
+			for _, pk := range target.primaryKeys {
 				pkSet[pk] = struct{}{}
 			}
 
-			for i, col := range columns {
+			for i, col := range target.columns {
 				if _, ok := pkSet[col]; ok {
 					continue // Skip updating primary key columns
 				}
@@ -168,7 +141,9 @@ func syncTarget(
 
 	// Iterate over target rows and DELETE any that weren't in the source
 	for key := range targetMap {
-		delete := sq.Delete(tableName).Where(key.whereClause(primaryKeys, primaryKeyIndices))
+		delete := sq.
+			Delete(tableName).
+			Where(key.whereClause(target.primaryKeys, target.primaryKeyIndices))
 
 		if _, err := delete.RunWith(target.DB).Exec(); err != nil {
 			return "", false, err
@@ -196,23 +171,18 @@ func checksumData(data [][]any) (string, error) {
 	return checksum, nil
 }
 
-func getEntries(
-	table Table,
-	primaryKeys []string,
-	primaryKeyIndices []int,
-	columns []string,
-) ([][]any, map[primaryKeyTuple][]any, error) {
+func (t table) getEntries() ([][]any, map[primaryKeyTuple][]any, error) {
 	fetchAll := sq.
-		Select(columns...).
-		From(table.Config.Table).
-		OrderBy(primaryKeys...)
+		Select(t.columns...).
+		From(t.config.Table).
+		OrderBy(t.primaryKeys...)
 
 	sql, args, err := fetchAll.ToSql()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	rows, err := table.Queryx(sql, args...)
+	rows, err := t.Queryx(sql, args...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -231,7 +201,7 @@ func getEntries(
 		entryList = append(entryList, cols)
 
 		pkTuple := primaryKeyTuple{}
-		for i, idx := range primaryKeyIndices {
+		for i, idx := range t.primaryKeyIndices {
 			switch i {
 			case 0:
 				pkTuple.First = cols[idx]
@@ -250,6 +220,24 @@ func getEntries(
 	}
 
 	return entryList, entryMap, nil
+}
+
+func (job JobConfig) getPrimaryKeyIndices() []int {
+	// Create a map of column names to their index in the columns slice
+	columnIndices := map[string]int{}
+	for i, col := range job.Columns {
+		columnIndices[col] = i
+	}
+
+	// Determine the indices of the primary keys in the columns slice
+	var primaryKeyIndices []int
+	for _, pk := range job.PrimaryKeys {
+		if _, ok := columnIndices[pk]; ok {
+			primaryKeyIndices = append(primaryKeyIndices, columnIndices[pk])
+		}
+	}
+
+	return primaryKeyIndices
 }
 
 // We are not allowed to have a slice as a map key, so we use a struct instead

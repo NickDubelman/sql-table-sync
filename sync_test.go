@@ -10,37 +10,56 @@ import (
 )
 
 func TestSyncTargets(t *testing.T) {
-	source := Table{
-		Config: TableConfig{
+	job := JobConfig{
+		PrimaryKeys: []string{"id"},
+		Columns:     []string{"id", "name", "age"},
+	}
+
+	primaryKeyIndices := job.getPrimaryKeyIndices()
+
+	source := table{
+		config: TableConfig{
 			Driver: "sqlite3",
 			DSN:    ":memory:",
 			Table:  "users",
 		},
+		primaryKeys:       job.PrimaryKeys,
+		primaryKeyIndices: primaryKeyIndices,
+		columns:           job.Columns,
 	}
 
-	target1 := Table{
-		Config: TableConfig{
+	target1 := table{
+		config: TableConfig{
 			Driver: "sqlite3",
 			DSN:    ":memory:",
 			Table:  "users",
 		},
+		primaryKeys:       job.PrimaryKeys,
+		primaryKeyIndices: primaryKeyIndices,
+		columns:           job.Columns,
 	}
 
-	target2 := Table{
-		Config: TableConfig{
+	target2 := table{
+		config: TableConfig{
 			Driver: "sqlite3",
 			DSN:    ":memory:",
 			Table:  "users",
 		},
+		primaryKeys:       job.PrimaryKeys,
+		primaryKeyIndices: primaryKeyIndices,
+		columns:           job.Columns,
 	}
 
-	target3 := Table{
-		Config: TableConfig{
+	target3 := table{
+		config: TableConfig{
 			Label:  "already in sync",
 			Driver: "sqlite3",
 			DSN:    ":memory:",
 			Table:  "users",
 		},
+		primaryKeys:       job.PrimaryKeys,
+		primaryKeyIndices: primaryKeyIndices,
+		columns:           job.Columns,
 	}
 
 	err := source.connect()
@@ -55,11 +74,11 @@ func TestSyncTargets(t *testing.T) {
 	err = target3.connect()
 	require.NoError(t, err)
 
-	targets := []Table{target1, target2, target3}
+	targets := []table{target1, target2, target3}
 
 	// Create a users table in the source and each target
-	for _, table := range append(targets, source) {
-		table.MustExec(`
+	for _, t := range append(targets, source) {
+		t.MustExec(`
 			CREATE TABLE IF NOT EXISTS users (
 				id INTEGER PRIMARY KEY NOT NULL,
 				name TEXT NOT NULL,
@@ -75,7 +94,7 @@ func TestSyncTargets(t *testing.T) {
 	}
 
 	insert := squirrel.
-		Insert(source.Config.Table).
+		Insert(source.config.Table).
 		Columns("id", "name", "age")
 
 	for _, row := range expectedData {
@@ -99,19 +118,14 @@ func TestSyncTargets(t *testing.T) {
 
 	// target2 has no data
 
-	_, results, err := syncTargets(
-		source,
-		targets,
-		[]string{"id"},
-		[]string{"id", "name", "age"},
-	)
+	_, results, err := syncTargets(source, targets)
 	require.NoError(t, err)
 	assert.Len(t, results, 3)
 
 	for _, result := range results {
 		assert.NoError(t, result.Error)
 
-		if result.Target.Config.Label == "already in sync" {
+		if result.Target.Label == "already in sync" {
 			assert.False(t, result.Synced)
 		} else {
 			assert.True(t, result.Synced)
@@ -119,8 +133,8 @@ func TestSyncTargets(t *testing.T) {
 	}
 
 	// Check that the data was copied to each target
-	for _, table := range targets {
-		rows, err := table.Queryx("SELECT * FROM users")
+	for _, target := range targets {
+		rows, err := target.Queryx("SELECT * FROM users")
 		require.NoError(t, err)
 
 		defer rows.Close()
@@ -145,20 +159,33 @@ func TestSyncTargets(t *testing.T) {
 }
 
 func TestSyncTargets_multiple_primary_key(t *testing.T) {
-	source := Table{
-		Config: TableConfig{
-			Driver: "sqlite3",
-			DSN:    ":memory:",
-			Table:  "users",
-		},
+	job := JobConfig{
+		PrimaryKeys: []string{"age", "name"},
+		Columns:     []string{"name", "age", "favoriteColor"},
 	}
 
-	target1 := Table{
-		Config: TableConfig{
+	primaryKeyIndices := job.getPrimaryKeyIndices()
+
+	source := table{
+		config: TableConfig{
 			Driver: "sqlite3",
 			DSN:    ":memory:",
 			Table:  "users",
 		},
+		primaryKeys:       job.PrimaryKeys,
+		primaryKeyIndices: primaryKeyIndices,
+		columns:           job.Columns,
+	}
+
+	target1 := table{
+		config: TableConfig{
+			Driver: "sqlite3",
+			DSN:    ":memory:",
+			Table:  "users",
+		},
+		primaryKeys:       job.PrimaryKeys,
+		primaryKeyIndices: primaryKeyIndices,
+		columns:           job.Columns,
 	}
 
 	err := source.connect()
@@ -167,11 +194,11 @@ func TestSyncTargets_multiple_primary_key(t *testing.T) {
 	err = target1.connect()
 	require.NoError(t, err)
 
-	targets := []Table{target1}
+	targets := []table{target1}
 
 	// Create a users table in the source and each target
-	for _, table := range append(targets, source) {
-		table.MustExec(`
+	for _, t := range append(targets, source) {
+		t.MustExec(`
 			CREATE TABLE IF NOT EXISTS users (
 				name TEXT NOT NULL,
 				age INT NOT NULL,
@@ -188,7 +215,7 @@ func TestSyncTargets_multiple_primary_key(t *testing.T) {
 	}
 
 	insert := squirrel.
-		Insert(source.Config.Table).
+		Insert(source.config.Table).
 		Columns("name", "age", "favoriteColor")
 
 	for _, row := range expectedData {
@@ -203,14 +230,7 @@ func TestSyncTargets_multiple_primary_key(t *testing.T) {
 
 	// target2 has no data
 
-	primaryKeys := []string{"age", "name"}
-
-	_, results, err := syncTargets(
-		source,
-		targets,
-		primaryKeys,
-		[]string{"name", "age", "favoriteColor"},
-	)
+	_, results, err := syncTargets(source, targets)
 	require.NoError(t, err)
 	assert.Len(t, results, 1)
 
@@ -220,9 +240,9 @@ func TestSyncTargets_multiple_primary_key(t *testing.T) {
 	}
 
 	// Check that the data was copied to each target
-	for _, table := range targets {
-		order := strings.Join(primaryKeys, ", ")
-		rows, err := table.Queryx("SELECT * FROM users ORDER BY " + order)
+	for _, target := range targets {
+		order := strings.Join(job.PrimaryKeys, ", ")
+		rows, err := target.Queryx("SELECT * FROM users ORDER BY " + order)
 		require.NoError(t, err)
 
 		defer rows.Close()

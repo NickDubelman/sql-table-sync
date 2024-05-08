@@ -17,12 +17,24 @@ func (c Config) ExecJob(jobName string) (string, []SyncResult, error) {
 		return "", nil, fmt.Errorf("job '%s' not found in config", jobName)
 	}
 
-	source := Table{Config: job.Source}
+	primaryKeyIndices := job.getPrimaryKeyIndices()
 
-	targets := make([]Table, len(job.Targets))
-	for i, target := range job.Targets {
-		targets[i] = Table{Config: target}
+	source := table{
+		config:            job.Source,
+		primaryKeys:       job.PrimaryKeys,
+		primaryKeyIndices: primaryKeyIndices,
+		columns:           job.Columns,
 	}
 
-	return syncTargets(source, targets, job.PrimaryKeys, job.Columns)
+	targets := make([]table, len(job.Targets))
+	for i, target := range job.Targets {
+		targets[i] = table{
+			config:            target,
+			primaryKeys:       job.PrimaryKeys,
+			primaryKeyIndices: primaryKeyIndices,
+			columns:           job.Columns,
+		}
+	}
+
+	return syncTargets(source, targets)
 }

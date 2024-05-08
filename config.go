@@ -99,8 +99,8 @@ func (c Config) Validate() error {
 func (c Config) Ping() error {
 	// Iterate over all jobs and "ping" the source and targets
 	ping := func(config TableConfig, columns []string) error {
-		table := Table{Config: config}
-		if err := table.connect(); err != nil {
+		t := table{config: config}
+		if err := t.connect(); err != nil {
 			return err
 		}
 
@@ -111,7 +111,7 @@ func (c Config) Ping() error {
 			return err
 		}
 
-		rows, err := table.Query(sql, args...)
+		rows, err := t.Query(sql, args...)
 		if err != nil {
 			return err
 		}
@@ -119,7 +119,7 @@ func (c Config) Ping() error {
 		defer rows.Close()
 
 		// Close the db connection, just to be safe
-		if err := table.Close(); err != nil {
+		if err := t.Close(); err != nil {
 			return err
 		}
 
