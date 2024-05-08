@@ -51,21 +51,6 @@ func LoadConfig(filename string) (Config, error) {
 	return config, nil
 }
 
-func (c Config) validate() error {
-	// Make sure there is at least one job
-	if len(c.Jobs) == 0 {
-		return fmt.Errorf("no jobs found in config")
-	}
-
-	for _, job := range c.Jobs {
-		if err := job.validate(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func loadConfig(fileContents string) (Config, error) {
 	// Unmarshal fileContents into a Config struct
 	var config Config
@@ -112,6 +97,21 @@ func loadConfig(fileContents string) (Config, error) {
 	}
 
 	return config, nil
+}
+
+func (c Config) validate() error {
+	// Make sure there is at least one job
+	if len(c.Jobs) == 0 {
+		return fmt.Errorf("no jobs found in config")
+	}
+
+	for _, job := range c.Jobs {
+		if err := job.validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (cfg JobConfig) validate() error {

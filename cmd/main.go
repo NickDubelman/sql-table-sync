@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	sync "github.com/NickDubelman/sql-table-sync"
@@ -18,15 +19,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	pingResult, err := cfg.Ping()
+	pingResults, err := cfg.Ping(30 * time.Second)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	for _, jobResult := range pingResult.Results {
-		for _, result := range jobResult.Results {
+	for _, r := range pingResults {
+		for _, result := range r.Tables {
 			if result.Error != nil {
-				fmt.Println(jobResult.Job.Name, result.Label, result.Error)
+				fmt.Println(r.Job.Name, result.Label, result.Error)
 			}
 		}
 	}

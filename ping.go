@@ -10,18 +10,14 @@ import (
 )
 
 type PingResult struct {
-	Results []JobPingResult
-}
-
-type JobPingResult struct {
-	Job     JobConfig
-	Results []TablePingResult
+	Job    JobConfig
+	Tables []TablePingResult
 }
 
 type TablePingResult struct {
-	Label       string
-	TableConfig TableConfig
-	Error       error
+	Label  string
+	Config TableConfig
+	Error  error
 }
 
 // Ping checks all jobs in the config to ensure that each source and target table:
@@ -29,14 +25,12 @@ type TablePingResult struct {
 //   - has the correct credentials
 //   - exists
 //   - has the expected columns
-func (c Config) Ping() (PingResult, error) {
-	timeout := 30 * time.Second
-
+func (c Config) Ping(timeout time.Duration) ([]PingResult, error) {
 	// Iterate over all jobs and "ping" the source and targets
-	jobResults := make([]JobPingResult, len(c.Jobs))
+	results := make([]PingResult, len(c.Jobs))
 
 	for i, job := range c.Jobs {
-		jobResults[i].Job = job
+		results[i].Job = job
 
 		// Ping the source table
 		sourceLabel := job.Source.Label
@@ -44,10 +38,10 @@ func (c Config) Ping() (PingResult, error) {
 			sourceLabel = "source"
 		}
 
-		jobResults[i].Results = append(jobResults[i].Results, TablePingResult{
-			Label:       sourceLabel,
-			TableConfig: job.Source,
-			Error:       pingWithTimeout(timeout, job.Source, job.Columns),
+		results[i].Tables = append(results[i].Tables, TablePingResult{
+			Label:  sourceLabel,
+			Config: job.Source,
+			Error:  pingWithTimeout(timeout, job.Source, job.Columns),
 		})
 
 		// Ping the target tables (in parallel)
@@ -65,9 +59,9 @@ func (c Config) Ping() (PingResult, error) {
 				}
 
 				resultChan <- TablePingResult{
-					Label:       label,
-					TableConfig: target,
-					Error:       pingWithTimeout(timeout, target, job.Columns),
+					Label:  label,
+					Config: target,
+					Error:  pingWithTimeout(timeout, target, job.Columns),
 				}
 			}(j, target)
 		}
@@ -77,11 +71,11 @@ func (c Config) Ping() (PingResult, error) {
 
 		// Collect the results from the channel
 		for result := range resultChan {
-			jobResults[i].Results = append(jobResults[i].Results, result)
+			results[i].Tables = append(results[i].Tables, result)
 		}
 	}
 
-	return PingResult{Results: jobResults}, nil
+	return results, nil
 }
 
 // Ping the source and targets for a given TableConfig
