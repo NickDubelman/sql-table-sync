@@ -14,11 +14,12 @@ type Config struct {
 }
 
 type JobConfig struct {
-	Name       string
-	Columns    []string
-	PrimaryKey string `yaml:"primaryKey"`
-	Source     TableConfig
-	Targets    []TableConfig
+	Name        string
+	Columns     []string
+	PrimaryKey  string   `yaml:"primaryKey"`
+	PrimaryKeys []string `yaml:"primaryKeys"`
+	Source      TableConfig
+	Targets     []TableConfig
 }
 
 type TableConfig struct {
@@ -48,8 +49,13 @@ func (c Config) Validate() error {
 		return fmt.Errorf("no jobs found in config")
 	}
 
-	// Make sure every job has a non-empty source table
 	for _, job := range c.Jobs {
+		// Make sure every job has a non-empty name
+		if job.Name == "" {
+			return fmt.Errorf("job has no name")
+		}
+
+		// Make sure every job has a non-empty source table
 		if job.Source.Table == "" {
 			return fmt.Errorf("job %s has no source table", job.Name)
 		}
@@ -72,6 +78,12 @@ func (c Config) Validate() error {
 	}
 
 	// TODO: what else makes sense to validate?
+
+	// TODO: Make sure primaryKeys is populated and <= length 3
+	// TODO: Make sure columns is non-empty
+	// TODO: Make sure primaryKeys is a subset of columns
+
+	// TODO: Make sure each table has a driver
 
 	return nil
 }
@@ -154,8 +166,13 @@ func loadConfig(fileContents string) (Config, error) {
 	// Impose some default values
 	for i := range config.Jobs {
 		// For each job, if PrimaryKey is empty, set it to "id"
-		if config.Jobs[i].PrimaryKey == "" {
+		if config.Jobs[i].PrimaryKey == "" && len(config.Jobs[i].PrimaryKeys) == 0 {
 			config.Jobs[i].PrimaryKey = "id"
+		}
+
+		// If PrimaryKey is non-empty, copy it to PrimaryKeys
+		if config.Jobs[i].PrimaryKey != "" {
+			config.Jobs[i].PrimaryKeys = []string{config.Jobs[i].PrimaryKey}
 		}
 
 		// For each table, if User is empty, set it to "root"

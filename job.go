@@ -31,5 +31,5 @@ func (c Config) ExecJob(jobName string) (string, []SyncResult, error) {
 		targets[i] = Table{Config: target}
 	}
 
-	return syncTargets(job.PrimaryKey, job.Columns, source, targets)
+	return syncTargets(job.PrimaryKeys, job.Columns, source, targets)
 }

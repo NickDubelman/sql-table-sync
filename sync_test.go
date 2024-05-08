@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Masterminds/squirrel"
@@ -80,10 +81,10 @@ func TestSyncTargets(t *testing.T) {
 	// Insert some data to delete into one of the targets
 	target1.MustExec("INSERT INTO users (id, name, age) VALUES (420, 'Azamat', 69)")
 
-	// table2 has no data
+	// target2 has no data
 
 	_, results, err := syncTargets(
-		"id",
+		[]string{"id"},
 		[]string{"id", "name", "age"},
 		source,
 		targets,
@@ -104,6 +105,100 @@ func TestSyncTargets(t *testing.T) {
 	// Check that the data was copied to each target
 	for _, table := range targets {
 		rows, err := table.Queryx("SELECT * FROM users")
+		require.NoError(t, err)
+
+		defer rows.Close()
+
+		var data [][]any
+		for rows.Next() {
+			cols, err := rows.SliceScan()
+			require.NoError(t, err)
+			data = append(data, cols)
+		}
+
+		require.Equal(t, len(expectedData), len(data))
+
+		// Make sure the data is correct
+		for i := range expectedData {
+			require.Len(t, data[i], len(expectedData[i]))
+			for j := range expectedData[i] {
+				require.EqualValues(t, expectedData[i][j], data[i][j])
+			}
+		}
+	}
+}
+
+func TestSyncTargets_multiple_primary_key(t *testing.T) {
+	source, err := Connect(TableConfig{
+		Driver: "sqlite3",
+		DSN:    ":memory:",
+		Table:  "users",
+	})
+	require.NoError(t, err)
+
+	target1, err := Connect(TableConfig{
+		Driver: "sqlite3",
+		DSN:    ":memory:",
+		Table:  "users",
+	})
+	require.NoError(t, err)
+
+	targets := []Table{target1}
+
+	// Create a users table in the source and each target
+	for _, table := range append(targets, source) {
+		table.MustExec(`
+			CREATE TABLE IF NOT EXISTS users (
+				name TEXT NOT NULL,
+				age INT NOT NULL,
+				favoriteColor TEXT NOT NULL,
+				PRIMARY KEY (age, name)
+			)
+		`)
+	}
+
+	expectedData := [][]any{
+		{"Bob", 25, "blue"},
+		{"Alice", 30, "red"},
+		{"Charlie", 35, "green"},
+	}
+
+	insert := squirrel.
+		Insert(source.Config.Table).
+		Columns("name", "age", "favoriteColor")
+
+	for _, row := range expectedData {
+		insert = insert.Values(row...)
+	}
+
+	sql, args, err := insert.ToSql()
+	require.NoError(t, err)
+
+	// Insert some data into the source
+	source.MustExec(sql, args...)
+
+	// target2 has no data
+
+	primaryKeys := []string{"age", "name"}
+
+	_, results, err := syncTargets(
+		primaryKeys,
+		[]string{"name", "age", "favoriteColor"},
+		source,
+		targets,
+	)
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+
+	for _, result := range results {
+		assert.NoError(t, result.Error)
+		assert.True(t, result.Synced)
+	}
+
+	// Check that the data was copied to each target
+	for _, table := range targets {
+		order := strings.Join(primaryKeys, ", ")
+		rows, err := table.Queryx("SELECT * FROM users ORDER BY " + order)
 		require.NoError(t, err)
 
 		defer rows.Close()

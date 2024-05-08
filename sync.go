@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	sq "github.com/Masterminds/squirrel"
@@ -19,7 +20,7 @@ type SyncResult struct {
 }
 
 func syncTargets(
-	primaryKey string,
+	primaryKeys []string,
 	columns []string,
 	source Table,
 	targets []Table,
@@ -28,26 +29,26 @@ func syncTargets(
 		return "", nil, fmt.Errorf("source unreachable")
 	}
 
-	var primaryKeyIndex int
-	var primaryKeyFound bool
+	var primaryKeyIndices []int
 
-	// Determine the index of the primary key in the columns slice
+	// Create a map of column names to their index in the columns slice
+	columnIndices := map[string]int{}
 	for i, col := range columns {
-		if col == primaryKey {
-			primaryKeyIndex = i
-			primaryKeyFound = true
-			break
+		columnIndices[col] = i
+	}
+
+	// Determine the indices of the primary keys in the columns slice
+	for _, pk := range primaryKeys {
+		if _, ok := columnIndices[pk]; ok {
+			primaryKeyIndices = append(primaryKeyIndices, columnIndices[pk])
 		}
 	}
 
-	if !primaryKeyFound {
-		return "", nil, fmt.Errorf("primary key '%s' not found in columns", primaryKey)
-	}
-
-	fetchAll := sq.Select(columns...).From(source.Config.Table).OrderBy(primaryKey)
+	order := strings.Join(primaryKeys, ", ")
+	fetchAll := sq.Select(columns...).From(source.Config.Table).OrderBy(order)
 
 	// Get all rows from the source table and put them in a map by their primary key
-	sourceEntries, sourceMap, err := getEntries(source, fetchAll, primaryKeyIndex)
+	sourceEntries, sourceMap, err := getEntries(source, fetchAll, primaryKeyIndices)
 	if err != nil {
 		return "", nil, err
 	}
@@ -66,8 +67,8 @@ func syncTargets(
 			defer wg.Done()
 			checksum, synced, err := syncTarget(
 				target,
-				primaryKey,
-				primaryKeyIndex,
+				primaryKeys,
+				primaryKeyIndices,
 				columns,
 				sourceChecksum,
 				sourceMap,
@@ -96,11 +97,11 @@ func syncTargets(
 
 func syncTarget(
 	target Table,
-	primaryKey string,
-	primaryKeyIndex int,
+	primaryKeys []string,
+	primaryKeyIndices []int,
 	columns []string,
 	sourceChecksum string,
-	sourceMap map[any][]any,
+	sourceMap map[primaryKeyTuple][]any,
 ) (string, bool, error) {
 	if target.DB == nil {
 		var err error
@@ -110,9 +111,10 @@ func syncTarget(
 		}
 	}
 
-	fetchAll := sq.Select(columns...).From(target.Config.Table).OrderBy(primaryKey)
+	order := strings.Join(primaryKeys, ", ")
+	fetchAll := sq.Select(columns...).From(target.Config.Table).OrderBy(order)
 
-	targetEntries, targetMap, err := getEntries(target, fetchAll, primaryKeyIndex)
+	targetEntries, targetMap, err := getEntries(target, fetchAll, primaryKeyIndices)
 	if err != nil {
 		return "", false, err
 	}
@@ -149,11 +151,17 @@ func syncTarget(
 			}
 
 			// There is a diff, perform an UPDATE
-			update := sq.Update(tableName).Where(sq.Eq{primaryKey: key})
+			where := getWhereClauseFromPK(key, primaryKeys, primaryKeyIndices)
+			update := sq.Update(tableName).Where(where)
+
+			pkSet := map[string]struct{}{}
+			for _, pk := range primaryKeys {
+				pkSet[pk] = struct{}{}
+			}
 
 			for i, col := range columns {
-				if col == primaryKey {
-					continue
+				if _, ok := pkSet[col]; ok {
+					continue // Skip updating primary key columns
 				}
 
 				update = update.Set(col, val[i])
@@ -167,7 +175,8 @@ func syncTarget(
 
 	// Iterate over target rows and DELETE any that weren't in the source
 	for key := range targetMap {
-		delete := sq.Delete(tableName).Where(sq.Eq{primaryKey: key})
+		where := getWhereClauseFromPK(key, primaryKeys, primaryKeyIndices)
+		delete := sq.Delete(tableName).Where(where)
 
 		if _, err := delete.RunWith(target.DB).Exec(); err != nil {
 			return "", false, err
@@ -198,8 +207,8 @@ func checksumData(data [][]any) (string, error) {
 func getEntries(
 	table Table,
 	query sq.SelectBuilder,
-	primaryKeyIndex int,
-) ([][]any, map[any][]any, error) {
+	primaryKeyIndices []int,
+) ([][]any, map[primaryKeyTuple][]any, error) {
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, nil, err
@@ -213,7 +222,7 @@ func getEntries(
 	defer rows.Close()
 
 	entryList := [][]any{}
-	entryMap := map[any][]any{}
+	entryMap := map[primaryKeyTuple][]any{}
 
 	for rows.Next() {
 		cols, err := rows.SliceScan()
@@ -223,8 +232,19 @@ func getEntries(
 
 		entryList = append(entryList, cols)
 
-		pk := cols[primaryKeyIndex]
-		entryMap[pk] = cols
+		pkTuple := primaryKeyTuple{}
+		for i, idx := range primaryKeyIndices {
+			switch i {
+			case 0:
+				pkTuple.First = cols[idx]
+			case 1:
+				pkTuple.Second = cols[idx]
+			case 2:
+				pkTuple.Third = cols[idx]
+			}
+		}
+
+		entryMap[pkTuple] = cols
 	}
 
 	if err = rows.Err(); err != nil {
@@ -232,4 +252,36 @@ func getEntries(
 	}
 
 	return entryList, entryMap, nil
+}
+
+// We are not allowed to have a slice as a map key, so we use a struct instead
+// For now, we limit to a maximum of 3 primary key columns
+type primaryKeyTuple struct {
+	First  any
+	Second any
+	Third  any
+}
+
+// getWhereClauseFromPK returns a WHERE clause for the given primary key tuple
+func getWhereClauseFromPK(
+	key primaryKeyTuple,
+	primaryKeys []string,
+	primaryKeyIndices []int,
+) sq.Eq {
+	where := sq.Eq{}
+
+	for i, idx := range primaryKeyIndices {
+		columnName := primaryKeys[idx]
+
+		switch i {
+		case 0:
+			where[columnName] = key.First
+		case 1:
+			where[columnName] = key.Second
+		case 2:
+			where[columnName] = key.Third
+		}
+	}
+
+	return where
 }
