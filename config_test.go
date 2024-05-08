@@ -9,7 +9,14 @@ import (
 )
 
 func TestLoadConfig(t *testing.T) {
-	t.Run("load from string", func(t *testing.T) {
+	t.Run("load invalid config", func(t *testing.T) {
+		_, err := loadConfig(`- abc`)
+		assert.Error(t, err)
+		var typeErr *yaml.TypeError
+		assert.ErrorAs(t, err, &typeErr)
+	})
+
+	t.Run("load valid config", func(t *testing.T) {
 		cfg, err := loadConfig(`
             jobs:
               - name: users
@@ -67,23 +74,40 @@ func TestLoadConfig(t *testing.T) {
 
 	t.Run("default config values", func(t *testing.T) {
 		cfg, err := loadConfig(`
+            driver: sqlite3
+
             jobs:
               - name: users
                 columns: [id, name, age]
+                source:
+                  table: users
+                targets:
+                  - table: users2
+                  - table: users3
+                    driver: sqlite4
+                    user: nikolas
         `)
 		require.NoError(t, err)
 		require.Len(t, cfg.Jobs, 1)
 
 		// PrimaryKey is empty, so it should default to "id"
 		assert.Equal(t, "id", cfg.Jobs[0].PrimaryKey)
+
+		// PrimaryKey should be copied to PrimaryKeys
+		assert.Equal(t, []string{"id"}, cfg.Jobs[0].PrimaryKeys)
+
+		// Driver is specified at top level, so it should be copied to each source and target that
+		// does not specify a driver
+		assert.Equal(t, "sqlite3", cfg.Jobs[0].Source.Driver)
+		assert.Equal(t, "sqlite3", cfg.Jobs[0].Targets[0].Driver)
+		assert.Equal(t, "sqlite4", cfg.Jobs[0].Targets[1].Driver)
+
+		// User should default to root
+		assert.Equal(t, "root", cfg.Jobs[0].Source.User)
+		assert.Equal(t, "root", cfg.Jobs[0].Targets[0].User)
+		assert.Equal(t, "nikolas", cfg.Jobs[0].Targets[1].User)
 	})
 
-	t.Run("load from string (invalid)", func(t *testing.T) {
-		_, err := loadConfig(`- abc`)
-		assert.Error(t, err)
-		var typeErr *yaml.TypeError
-		assert.ErrorAs(t, err, &typeErr)
-	})
 }
 
 func TestValidateConfig(t *testing.T) {
