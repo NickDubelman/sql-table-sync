@@ -84,10 +84,10 @@ func TestSyncTargets(t *testing.T) {
 	// target2 has no data
 
 	_, results, err := syncTargets(
-		[]string{"id"},
-		[]string{"id", "name", "age"},
 		source,
 		targets,
+		[]string{"id"},
+		[]string{"id", "name", "age"},
 	)
 	require.NoError(t, err)
 	assert.Len(t, results, 3)
@@ -182,10 +182,10 @@ func TestSyncTargets_multiple_primary_key(t *testing.T) {
 	primaryKeys := []string{"age", "name"}
 
 	_, results, err := syncTargets(
-		primaryKeys,
-		[]string{"name", "age", "favoriteColor"},
 		source,
 		targets,
+		primaryKeys,
+		[]string{"name", "age", "favoriteColor"},
 	)
 	require.NoError(t, err)
 	assert.Len(t, results, 1)

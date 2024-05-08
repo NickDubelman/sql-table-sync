@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 
 	sq "github.com/Masterminds/squirrel"
@@ -20,13 +19,18 @@ type SyncResult struct {
 }
 
 func syncTargets(
-	primaryKeys []string,
-	columns []string,
 	source Table,
 	targets []Table,
+	primaryKeys []string,
+	columns []string,
 ) (string, []SyncResult, error) {
 	if source.DB == nil {
-		return "", nil, fmt.Errorf("source unreachable")
+		// Connect to source if it's not already connected
+		var err error
+		source, err = Connect(source.Config)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to connect to source: %w", err)
+		}
 	}
 
 	var primaryKeyIndices []int
@@ -44,11 +48,8 @@ func syncTargets(
 		}
 	}
 
-	order := strings.Join(primaryKeys, ", ")
-	fetchAll := sq.Select(columns...).From(source.Config.Table).OrderBy(order)
-
 	// Get all rows from the source table and put them in a map by their primary key
-	sourceEntries, sourceMap, err := getEntries(source, fetchAll, primaryKeyIndices)
+	sourceEntries, sourceMap, err := getEntries(source, primaryKeys, primaryKeyIndices, columns)
 	if err != nil {
 		return "", nil, err
 	}
@@ -111,10 +112,7 @@ func syncTarget(
 		}
 	}
 
-	order := strings.Join(primaryKeys, ", ")
-	fetchAll := sq.Select(columns...).From(target.Config.Table).OrderBy(order)
-
-	targetEntries, targetMap, err := getEntries(target, fetchAll, primaryKeyIndices)
+	targetEntries, targetMap, err := getEntries(target, primaryKeys, primaryKeyIndices, columns)
 	if err != nil {
 		return "", false, err
 	}
@@ -151,8 +149,7 @@ func syncTarget(
 			}
 
 			// There is a diff, perform an UPDATE
-			where := getWhereClauseFromPK(key, primaryKeys, primaryKeyIndices)
-			update := sq.Update(tableName).Where(where)
+			update := sq.Update(tableName).Where(key.whereClause(primaryKeys, primaryKeyIndices))
 
 			pkSet := map[string]struct{}{}
 			for _, pk := range primaryKeys {
@@ -175,8 +172,7 @@ func syncTarget(
 
 	// Iterate over target rows and DELETE any that weren't in the source
 	for key := range targetMap {
-		where := getWhereClauseFromPK(key, primaryKeys, primaryKeyIndices)
-		delete := sq.Delete(tableName).Where(where)
+		delete := sq.Delete(tableName).Where(key.whereClause(primaryKeys, primaryKeyIndices))
 
 		if _, err := delete.RunWith(target.DB).Exec(); err != nil {
 			return "", false, err
@@ -206,10 +202,16 @@ func checksumData(data [][]any) (string, error) {
 
 func getEntries(
 	table Table,
-	query sq.SelectBuilder,
+	primaryKeys []string,
 	primaryKeyIndices []int,
+	columns []string,
 ) ([][]any, map[primaryKeyTuple][]any, error) {
-	sql, args, err := query.ToSql()
+	fetchAll := sq.
+		Select(columns...).
+		From(table.Config.Table).
+		OrderBy(primaryKeys...)
+
+	sql, args, err := fetchAll.ToSql()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -262,12 +264,7 @@ type primaryKeyTuple struct {
 	Third  any
 }
 
-// getWhereClauseFromPK returns a WHERE clause for the given primary key tuple
-func getWhereClauseFromPK(
-	key primaryKeyTuple,
-	primaryKeys []string,
-	primaryKeyIndices []int,
-) sq.Eq {
+func (key primaryKeyTuple) whereClause(primaryKeys []string, primaryKeyIndices []int) sq.Eq {
 	where := sq.Eq{}
 
 	for i, idx := range primaryKeyIndices {

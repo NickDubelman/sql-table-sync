@@ -1,8 +1,6 @@
 package sync
 
-import (
-	"fmt"
-)
+import "fmt"
 
 func (c Config) ExecJob(jobName string) (string, []SyncResult, error) {
 	// Find the job with the given name
@@ -19,17 +17,12 @@ func (c Config) ExecJob(jobName string) (string, []SyncResult, error) {
 		return "", nil, fmt.Errorf("job '%s' not found in config", jobName)
 	}
 
-	// Connect to source
-	source, err := Connect(job.Source)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to connect to source: %w", err)
-	}
+	source := Table{Config: job.Source}
 
-	// Attempt to connect to each target
 	targets := make([]Table, len(job.Targets))
 	for i, target := range job.Targets {
 		targets[i] = Table{Config: target}
 	}
 
-	return syncTargets(job.PrimaryKeys, job.Columns, source, targets)
+	return syncTargets(source, targets, job.PrimaryKeys, job.Columns)
 }
