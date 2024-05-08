@@ -93,6 +93,9 @@ func (c Config) Validate() error {
 //   - has the correct credentials
 //   - exists
 //   - has the expected columns
+//
+// TODO: instead of just erroring, return a result
+// TODO: jobs in series, but tables in parallel (with timeout)
 func (c Config) Ping() error {
 	// Iterate over all jobs and "ping" the source and targets
 	ping := func(config TableConfig, columns []string) error {
