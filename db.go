@@ -2,6 +2,7 @@ package sync
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -41,5 +42,13 @@ func (t *Table) connect() error {
 
 	var err error
 	t.DB, err = sqlx.Connect(t.Config.Driver, dsn)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to connect to %s: %w", t.Config.Label, err)
+	}
+
+	t.DB.SetMaxOpenConns(5)
+	t.DB.SetMaxIdleConns(5)
+	t.DB.SetConnMaxLifetime(5 * time.Minute)
+
+	return nil
 }
