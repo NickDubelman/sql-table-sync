@@ -50,40 +50,10 @@ func (c Config) Validate() error {
 	}
 
 	for _, job := range c.Jobs {
-		// Make sure every job has a non-empty name
-		if job.Name == "" {
-			return fmt.Errorf("job has no name")
-		}
-
-		// Make sure every job has a non-empty source table
-		if job.Source.Table == "" {
-			return fmt.Errorf("job %s has no source table", job.Name)
+		if err := job.validate(); err != nil {
+			return err
 		}
 	}
-
-	// Make sure every job has at least one target
-	for _, job := range c.Jobs {
-		if len(job.Targets) == 0 {
-			return fmt.Errorf("job %s has no targets", job.Name)
-		}
-	}
-
-	// Make sure every target has a non-empty table
-	for _, job := range c.Jobs {
-		for i, target := range job.Targets {
-			if target.Table == "" {
-				return fmt.Errorf("job %s, target[%d] with no table", job.Name, i)
-			}
-		}
-	}
-
-	// TODO: what else makes sense to validate?
-
-	// TODO: Make sure primaryKeys is populated and <= length 3
-	// TODO: Make sure columns is non-empty
-	// TODO: Make sure primaryKeys is a subset of columns
-
-	// TODO: Make sure each table has a driver
 
 	return nil
 }
@@ -203,4 +173,72 @@ func loadConfig(fileContents string) (Config, error) {
 	}
 
 	return config, nil
+}
+
+func (cfg JobConfig) validate() error {
+	// Make sure every job has a non-empty name
+	if cfg.Name == "" {
+		return fmt.Errorf("job has no name")
+	}
+
+	// Make sure primaryKeys is populated
+	if len(cfg.PrimaryKeys) == 0 {
+		return fmt.Errorf("job '%s' has no primary keys", cfg.Name)
+	}
+
+	// Make sure primaryKeys has length <= 3
+	if len(cfg.PrimaryKeys) > 3 {
+		return fmt.Errorf("job '%s' has too many primary keys", cfg.Name)
+	}
+
+	// Make sure columns is non-empty
+	if len(cfg.Columns) == 0 {
+		return fmt.Errorf("job '%s' does not specify any columns", cfg.Name)
+	}
+
+	// Make sure primaryKeys is a subset of columns
+	for _, key := range cfg.PrimaryKeys {
+		found := false
+		for _, column := range cfg.Columns {
+			if key == column {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return fmt.Errorf("job '%s' has primary key '%s' not in columns", cfg.Name, key)
+		}
+	}
+
+	// Make sure every job has a non-empty source table
+	if err := cfg.Source.validate(); err != nil {
+		return fmt.Errorf("job '%s' source: %w", cfg.Name, err)
+	}
+
+	// Make sure every job has at least one target
+	if len(cfg.Targets) == 0 {
+		return fmt.Errorf("job '%s' has no targets", cfg.Name)
+	}
+
+	for i, target := range cfg.Targets {
+		if err := target.validate(); err != nil {
+			return fmt.Errorf("job '%s' target[%d]: %w", cfg.Name, i, err)
+		}
+	}
+
+	return nil
+}
+
+func (cfg TableConfig) validate() error {
+	if cfg.Table == "" {
+		return fmt.Errorf("table name is empty")
+	}
+
+	// Make sure source specifies a driver
+	if cfg.Driver == "" {
+		return fmt.Errorf("table does not specify a driver")
+	}
+
+	return nil
 }

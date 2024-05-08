@@ -87,47 +87,240 @@ func TestLoadConfig(t *testing.T) {
 }
 
 func TestValidateConfig(t *testing.T) {
-	t.Run("no jobs", func(t *testing.T) {
-		cfg := Config{}
-		err := cfg.Validate()
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "no jobs found in config")
-	})
+	type testCase struct {
+		description string
+		config      Config
+		expectedErr string
+	}
 
-	t.Run("job with no source table", func(t *testing.T) {
-		cfg := Config{
-			Jobs: []JobConfig{
-				{Name: "users", Targets: []TableConfig{{Table: "users2"}}},
+	testCases := []testCase{
+		{
+			description: "valid config",
+			config: Config{
+				Jobs: []JobConfig{
+					{
+						Name:        "users",
+						Columns:     []string{"id", "name", "age"},
+						PrimaryKeys: []string{"id"},
+						Source: TableConfig{
+							Table:  "users",
+							Driver: "sqlite3",
+						},
+						Targets: []TableConfig{
+							{
+								Table:  "users2",
+								Driver: "sqlite3",
+							},
+						},
+					},
+				},
 			},
-		}
-		err := cfg.Validate()
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "job users has no source table")
-	})
-
-	t.Run("job with no targets", func(t *testing.T) {
-		cfg := Config{
-			Jobs: []JobConfig{
-				{Name: "users", Source: TableConfig{Table: "users"}},
+		},
+		{
+			description: "no jobs",
+			config: Config{
+				Jobs: nil,
 			},
-		}
-		err := cfg.Validate()
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "job users has no targets")
-	})
+			expectedErr: "no jobs found in config",
+		},
+	}
 
-	t.Run("target with no table", func(t *testing.T) {
-		cfg := Config{
-			Jobs: []JobConfig{
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			err := tc.config.Validate()
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tc.expectedErr)
+			}
+		})
+	}
+}
+
+func TestValidateJobConfig(t *testing.T) {
+	validJob := func() JobConfig {
+		return JobConfig{
+			Name:        "users",
+			Columns:     []string{"id", "name", "age"},
+			PrimaryKeys: []string{"id"},
+			Source: TableConfig{
+				Table:  "users",
+				Driver: "sqlite3",
+			},
+			Targets: []TableConfig{
 				{
-					Name:    "users",
-					Source:  TableConfig{Table: "users"},
-					Targets: []TableConfig{{Table: "abc"}, {Table: ""}},
+					Table:  "users2",
+					Driver: "sqlite3",
 				},
 			},
 		}
-		err := cfg.Validate()
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "job users, target[1] with no table")
-	})
+	}
+
+	type testCase struct {
+		description string
+		job         func() JobConfig
+		expectedErr string
+	}
+
+	testCases := []testCase{
+		{
+			description: "valid job",
+			job:         validJob,
+		},
+		{
+			description: "missing name",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Name = ""
+				return cfg
+			},
+			expectedErr: "job has no name",
+		},
+		{
+			description: "missing columns",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Columns = nil
+				return cfg
+			},
+			expectedErr: "job 'users' does not specify any columns",
+		},
+		{
+			description: "missing primary keys",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.PrimaryKeys = nil
+				return cfg
+			},
+			expectedErr: "job 'users' has no primary keys",
+		},
+		{
+			description: "too many primary keys",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.PrimaryKeys = []string{"id", "name", "age", "favoriteColor"}
+				return cfg
+			},
+			expectedErr: "job 'users' has too many primary keys",
+		},
+		{
+			description: "primary key not in columns",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.PrimaryKeys = []string{"favoriteColor"}
+				return cfg
+			},
+			expectedErr: "job 'users' has primary key 'favoriteColor' not in columns",
+		},
+		{
+			description: "missing source table",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Source.Table = ""
+				return cfg
+			},
+			expectedErr: "job 'users' source: table name is empty",
+		},
+		{
+			description: "missing source driver",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Source.Driver = ""
+				return cfg
+			},
+			expectedErr: "job 'users' source: table does not specify a driver",
+		},
+		{
+			description: "missing targets",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Targets = nil
+				return cfg
+			},
+			expectedErr: "job 'users' has no targets",
+		},
+		{
+			description: "missing target table",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Targets[0].Table = ""
+				return cfg
+			},
+			expectedErr: "job 'users' target[0]: table name is empty",
+		},
+		{
+			description: "missing target driver",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Targets[0].Driver = ""
+				return cfg
+			},
+			expectedErr: "job 'users' target[0]: table does not specify a driver",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			err := tc.job().validate()
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tc.expectedErr)
+			}
+		})
+	}
+}
+
+func TestValidateTableConfig(t *testing.T) {
+	validTable := func() TableConfig {
+		return TableConfig{
+			Table:  "users",
+			Driver: "sqlite3",
+		}
+	}
+
+	type testCase struct {
+		description string
+		table       func() TableConfig
+		expectedErr string
+	}
+
+	testCases := []testCase{
+		{
+			description: "valid table",
+			table:       validTable,
+		},
+		{
+			description: "missing table name",
+			table: func() TableConfig {
+				cfg := validTable()
+				cfg.Table = ""
+				return cfg
+			},
+			expectedErr: "table name is empty",
+		},
+		{
+			description: "missing table driver",
+			table: func() TableConfig {
+				cfg := validTable()
+				cfg.Driver = ""
+				return cfg
+			},
+			expectedErr: "table does not specify a driver",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			err := tc.table().validate()
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tc.expectedErr)
+			}
+		})
+	}
 }
