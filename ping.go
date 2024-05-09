@@ -22,59 +22,93 @@ type TablePingResult struct {
 	Error  error
 }
 
-// Ping checks all jobs in the config to ensure that each source and target table:
+// PingJob checks a single job in the config to ensure that each source and target table:
 //   - is reachable
 //   - has the correct credentials
 //   - exists
 //   - has the expected columns
-func (c Config) Ping(timeout time.Duration) ([]PingResult, error) {
+func (c Config) PingJob(jobName string, timeout time.Duration) ([]TablePingResult, error) {
+	// Find the job with the given name
+	var job JobConfig
+	for _, j := range c.Jobs {
+		if j.Name == jobName {
+			job = j
+			break
+		}
+	}
+
+	// If no matching job was found, return an error
+	if job.Name == "" {
+		return nil, fmt.Errorf("job '%s' not found in config", jobName)
+	}
+
+	var results []TablePingResult
+
+	// Ping the source table
+	sourceLabel := job.Source.Label
+	if sourceLabel == "" {
+		sourceLabel = "source"
+	}
+
+	results = append(results, TablePingResult{
+		Label:  sourceLabel,
+		Config: job.Source,
+		Error:  pingWithTimeout(timeout, job.Source, job.Columns),
+	})
+
+	// Ping the target tables (in parallel)
+	var wg sync.WaitGroup
+	resultChan := make(chan TablePingResult, len(job.Targets))
+
+	for j, target := range job.Targets {
+		wg.Add(1)
+		go func(j int, target TableConfig) {
+			defer wg.Done()
+
+			label := target.Label
+			if label == "" {
+				label = fmt.Sprintf("target %d", j)
+			}
+
+			resultChan <- TablePingResult{
+				Label:  label,
+				Config: target,
+				Error:  pingWithTimeout(timeout, target, job.Columns),
+			}
+		}(j, target)
+	}
+
+	wg.Wait()         // Wait for all goroutines to finish
+	close(resultChan) // Close the channel to signal that all results have been sent
+
+	// Collect the results from the channel
+	for result := range resultChan {
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+// PingAllJobs checks all jobs in the config to ensure that each source and target table:
+//   - is reachable
+//   - has the correct credentials
+//   - exists
+//   - has the expected columns
+func (c Config) PingAllJobs(timeout time.Duration) ([]PingResult, error) {
 	// Iterate over all jobs and "ping" the source and targets
 	results := make([]PingResult, len(c.Jobs))
 
 	for i, job := range c.Jobs {
 		results[i].Job = job
 
-		// Ping the source table
-		sourceLabel := job.Source.Label
-		if sourceLabel == "" {
-			sourceLabel = "source"
+		jobResults, err := c.PingJob(job.Name, timeout)
+		if err != nil {
+			// This can't actually happen because the only way for PingJob to error is if the job
+			// doesn't exist (but we are iterating on the jobs)
+			return nil, err
 		}
 
-		results[i].Tables = append(results[i].Tables, TablePingResult{
-			Label:  sourceLabel,
-			Config: job.Source,
-			Error:  pingWithTimeout(timeout, job.Source, job.Columns),
-		})
-
-		// Ping the target tables (in parallel)
-		var wg sync.WaitGroup
-		resultChan := make(chan TablePingResult, len(job.Targets))
-
-		for j, target := range job.Targets {
-			wg.Add(1)
-			go func(j int, target TableConfig) {
-				defer wg.Done()
-
-				label := target.Label
-				if label == "" {
-					label = fmt.Sprintf("target %d", j)
-				}
-
-				resultChan <- TablePingResult{
-					Label:  label,
-					Config: target,
-					Error:  pingWithTimeout(timeout, target, job.Columns),
-				}
-			}(j, target)
-		}
-
-		wg.Wait()         // Wait for all goroutines to finish
-		close(resultChan) // Close the channel to signal that all results have been sent
-
-		// Collect the results from the channel
-		for result := range resultChan {
-			results[i].Tables = append(results[i].Tables, result)
-		}
+		results[i].Tables = jobResults
 	}
 
 	return results, nil

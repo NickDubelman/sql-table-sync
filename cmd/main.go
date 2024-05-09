@@ -6,9 +6,10 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	sync "github.com/NickDubelman/sql-table-sync"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+
+	sync "github.com/NickDubelman/sql-table-sync"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	pingResults, err := cfg.Ping(30 * time.Second)
+	pingResults, err := cfg.PingAllJobs(30 * time.Second)
 	if err != nil {
 		fmt.Println(err)
 	}
