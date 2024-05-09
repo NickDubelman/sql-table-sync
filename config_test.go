@@ -175,7 +175,7 @@ func TestValidateConfig(t *testing.T) {
 
 				return cfg
 			},
-			expectedErr: "duplicate job names: [users posts]",
+			expectedErr: "duplicate job names: [posts users]",
 		},
 	}
 

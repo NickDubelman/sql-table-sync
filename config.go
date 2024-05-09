@@ -3,6 +3,7 @@ package sync
 import (
 	"fmt"
 	"os"
+	"slices"
 
 	"gopkg.in/yaml.v3"
 )
@@ -148,6 +149,7 @@ func (c Config) validate() error {
 			duplicateNames = append(duplicateNames, name)
 		}
 	}
+	slices.Sort(duplicateNames) // Sort deterministically (alphabetically)
 
 	if len(duplicateNames) > 0 {
 		return fmt.Errorf("duplicate job names: %v", duplicateNames)
