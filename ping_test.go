@@ -1,6 +1,8 @@
 package sync
 
 import (
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -17,9 +19,8 @@ func TestPingAllJobs(t *testing.T) {
 	config := Config{
 		Jobs: []JobConfig{
 			{
-				Name:        "users",
-				PrimaryKeys: []string{"id"},
-				Columns:     []string{"id", "name", "email"},
+				Name:    "users",
+				Columns: []string{"id", "name", "email"},
 				Source: TableConfig{
 					Driver: "sqlite3",
 					DSN:    sourceDSN,
@@ -38,29 +39,51 @@ func TestPingAllJobs(t *testing.T) {
 					},
 				},
 			},
+			{
+				Name:    "pets",
+				Columns: []string{"id", "name", "user_id"},
+				Source: TableConfig{
+					Driver: "sqlite3",
+					DSN:    sourceDSN,
+					Table:  "pets",
+				},
+				Targets: []TableConfig{
+					{
+						Driver: "sqlite3",
+						DSN:    target1DSN,
+						Table:  "pets",
+					},
+				},
+			},
 		},
 	}
 
 	results, err := config.PingAllJobs(30 * time.Second)
 	require.NoError(t, err)
-	require.Len(t, results, 1)
+	require.Len(t, results, 2)
 
 	result := results[0]
 	assert.Equal(t, "users", result.Job.Name)
 	assert.Len(t, result.Tables, 3)
 
-	// We haven't yet created the tables, so we expect them all to error
-	for i, table := range result.Tables {
-		if i == 0 {
-			// First table should be the source
-			assert.Equal(t, "source", table.Label)
-		} else {
-			// Each subsequent table should be a target
-			assert.Contains(t, table.Label, "target")
-		}
+	result = results[1]
+	assert.Equal(t, "pets", result.Job.Name)
+	assert.Len(t, result.Tables, 2)
 
-		assert.Error(t, table.Error)
-		assert.ErrorContains(t, table.Error, "no such table")
+	// We haven't yet created the tables, so we expect them all to error
+	for _, result := range results {
+		for i, table := range result.Tables {
+			if i == 0 {
+				// First table should be the source
+				assert.Equal(t, "source", table.Label)
+			} else {
+				// Each subsequent table should be a target
+				assert.Contains(t, table.Label, "target")
+			}
+
+			assert.Error(t, table.Error)
+			assert.ErrorContains(t, table.Error, "no such table")
+		}
 	}
 
 	// After we create the tables, we should be able to ping them successfully
@@ -79,20 +102,163 @@ func TestPingAllJobs(t *testing.T) {
 				id INTEGER PRIMARY KEY,
 				name TEXT NOT NULL,
 				email TEXT NOT NULL
-			)
+			);
+
+			CREATE TABLE pets (
+				id INTEGER PRIMARY KEY,
+				name TEXT NOT NULL,
+				user_id INTEGER NOT NULL
+			);
 		`)
 	}
 
 	results, err = config.PingAllJobs(30 * time.Second)
 	require.NoError(t, err)
-	require.Len(t, results, 1)
+	require.Len(t, results, 2)
 
 	result = results[0]
 	assert.Equal(t, "users", result.Job.Name)
 	assert.Len(t, result.Tables, 3)
 
-	for _, table := range result.Tables {
-		assert.NoError(t, table.Error)
+	result = results[1]
+	assert.Equal(t, "pets", result.Job.Name)
+	assert.Len(t, result.Tables, 2)
+
+	for _, result := range results {
+		for _, table := range result.Tables {
+			assert.NoError(t, table.Error)
+		}
+	}
+}
+
+func TestPingAllJobs_mysql(t *testing.T) {
+	dbName := os.Getenv("MYSQL_DB_NAME")
+	dbPortStr := os.Getenv("MYSQL_DB_PORT")
+
+	// MySQL DSNs
+	dsn := fmt.Sprintf("root@tcp(localhost:%s)/%s", dbPortStr, dbName)
+
+	config := Config{
+		Jobs: []JobConfig{
+			{
+				Name:        "users",
+				PrimaryKeys: []string{"id"},
+				Columns:     []string{"id", "name", "email"},
+				Source: TableConfig{
+					Driver: "mysql",
+					Table:  "users_ping_all",
+					DSN:    dsn,
+				},
+				Targets: []TableConfig{
+					{
+						Driver: "mysql",
+						Table:  "users_ping_all_1",
+						DSN:    dsn,
+					},
+					{
+						Driver: "mysql",
+						Table:  "users_ping_all_2",
+						DSN:    dsn,
+					},
+				},
+			},
+			{
+				Name:    "pets",
+				Columns: []string{"id", "name", "user_id"},
+				Source: TableConfig{
+					Driver: "mysql",
+					Table:  "pets_ping_all",
+					DSN:    dsn,
+				},
+				Targets: []TableConfig{
+					{
+						Driver: "mysql",
+						Table:  "pets_ping_all_1",
+						DSN:    dsn,
+					},
+				},
+			},
+		},
+	}
+
+	results, err := config.PingAllJobs(30 * time.Second)
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	result := results[0]
+	assert.Equal(t, "users", result.Job.Name)
+	assert.Len(t, result.Tables, 3)
+
+	result = results[1]
+	assert.Equal(t, "pets", result.Job.Name)
+	assert.Len(t, result.Tables, 2)
+
+	// We haven't yet created the tables, so we expect them all to error
+	for _, result := range results {
+		for i, table := range result.Tables {
+			if i == 0 {
+				// First table should be the source
+				assert.Equal(t, "source", table.Label)
+			} else {
+				// Each subsequent table should be a target
+				assert.Contains(t, table.Label, "target")
+			}
+
+			assert.Error(t, table.Error)
+			assert.ErrorContains(t, table.Error, "doesn't exist")
+		}
+	}
+
+	// After we create the tables, we should be able to ping them successfully
+	conn := sqlx.MustConnect("mysql", dsn)
+	defer conn.Close()
+
+	createUsersTable := func(tableName string) {
+		conn.MustExec(fmt.Sprintf(`
+			CREATE TABLE %s (
+				id INTEGER PRIMARY KEY,
+				name TEXT NOT NULL,
+				email TEXT NOT NULL
+			)
+		`, tableName))
+	}
+
+	createPetsTable := func(tableName string) {
+		conn.MustExec(fmt.Sprintf(`
+			CREATE TABLE %s (
+				id INTEGER PRIMARY KEY,
+				name TEXT NOT NULL,
+				user_id INTEGER NOT NULL
+			)
+		`, tableName))
+	}
+
+	createUsersTable(config.Jobs[0].Source.Table)
+	for _, target := range config.Jobs[0].Targets {
+		createUsersTable(target.Table)
+	}
+
+	createPetsTable(config.Jobs[1].Source.Table)
+	for _, target := range config.Jobs[1].Targets {
+		createPetsTable(target.Table)
+	}
+
+	results, err = config.PingAllJobs(30 * time.Second)
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	result = results[0]
+	assert.Equal(t, "users", result.Job.Name)
+	assert.Len(t, result.Tables, 3)
+
+	result = results[1]
+	assert.Equal(t, "pets", result.Job.Name)
+	assert.Len(t, result.Tables, 2)
+
+	for _, result := range results {
+		for _, table := range result.Tables {
+			assert.NoError(t, table.Error)
+		}
 	}
 }
 

@@ -457,7 +457,7 @@ func TestExecJob_mysql_multiple_primary_key(t *testing.T) {
 
 	target1Config := TableConfig{
 		Driver: "mysql",
-		Table:  "users_multi_pk2",
+		Table:  "users_multi_pk_1",
 		User:   "root",
 		DB:     dbName,
 		Port:   dbPort,
