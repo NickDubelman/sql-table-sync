@@ -119,11 +119,10 @@ func (config TableConfig) ping(columns []string) error {
 		return err
 	}
 
-	rows, err := t.Query(sql, args...)
+	rows, err := t.Queryx(sql, args...)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
-	return nil
+	return rows.Close()
 }
