@@ -1,6 +1,9 @@
 package sync
 
 import (
+	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -232,6 +235,171 @@ func TestExecJob_multiple_primary_key(t *testing.T) {
 		require.Len(t, data[i], len(expectedData[i]))
 		for j := range expectedData[i] {
 			require.EqualValues(t, expectedData[i][j], data[i][j])
+		}
+	}
+}
+
+func TestExecJob_mysql(t *testing.T) {
+	dbPortStr := os.Getenv("MYSQL_DB_PORT")
+	dbPort, _ := strconv.Atoi(dbPortStr)
+	dbName := os.Getenv("MYSQL_DB_NAME")
+
+	createTable := func(name string) string {
+		return fmt.Sprintf(`
+			CREATE TABLE IF NOT EXISTS %s (
+				id INT PRIMARY KEY NOT NULL,
+				name TEXT NOT NULL,
+				age INT NOT NULL
+			)
+		`, name)
+	}
+
+	sourceConfig := TableConfig{
+		Driver: "mysql",
+		Table:  "users",
+		User:   "root",
+		Port:   dbPort,
+		DB:     dbName,
+	}
+
+	source := table{config: sourceConfig}
+	err := source.connect()
+	require.NoError(t, err)
+	source.MustExec(createTable(sourceConfig.Table))
+
+	expectedData := [][]any{
+		{1, "Alice", 30},
+		{2, "Bob", 25},
+		{3, "Charlie", 35},
+	}
+
+	insert := squirrel.Insert(sourceConfig.Table).Columns("id", "name", "age")
+
+	for _, row := range expectedData {
+		insert = insert.Values(row...)
+	}
+
+	sql, args, err := insert.ToSql()
+	require.NoError(t, err)
+
+	// Insert some data into the source
+	source.MustExec(sql, args...)
+
+	target1Config := TableConfig{
+		Driver: "mysql",
+		Table:  "users2",
+		User:   "root",
+		Port:   dbPort,
+		DB:     dbName,
+	}
+
+	target1 := table{config: target1Config}
+	err = target1.connect()
+	require.NoError(t, err)
+	target1.MustExec(createTable(target1Config.Table))
+
+	// target1 has some data that needs to be updated/deleted
+	target1.MustExec(
+		fmt.Sprintf(
+			"INSERT INTO %s (id, name, age) VALUES (1, 'Nick', 31)",
+			target1Config.Table,
+		),
+	)
+	target1.MustExec(
+		fmt.Sprintf(
+			"INSERT INTO %s (id, name, age) VALUES (420, 'Azamat', 69)",
+			target1Config.Table,
+		),
+	)
+
+	target2Config := TableConfig{
+		Driver: "mysql",
+		Table:  "users3",
+		User:   "root",
+		Port:   dbPort,
+		DB:     dbName,
+	}
+
+	target2 := table{config: target2Config}
+	err = target2.connect()
+	require.NoError(t, err)
+	target2.MustExec(createTable(target2Config.Table))
+
+	// target2 has no data
+
+	target3Config := TableConfig{
+		Label:  "already in sync",
+		Driver: "mysql",
+		Table:  "users4",
+		User:   "root",
+		Port:   dbPort,
+		DB:     dbName,
+	}
+
+	target3 := table{config: target3Config}
+	err = target3.connect()
+	require.NoError(t, err)
+	target3.MustExec(createTable(target3Config.Table))
+
+	// table3 is already in sync
+	insert = squirrel.Insert(target3Config.Table).Columns("id", "name", "age")
+
+	for _, row := range expectedData {
+		insert = insert.Values(row...)
+	}
+
+	sql, args, err = insert.ToSql()
+	require.NoError(t, err)
+	target3.MustExec(sql, args...)
+
+	config := Config{
+		Jobs: []JobConfig{
+			{
+				Name:        "users",
+				PrimaryKeys: []string{"id"},
+				Columns:     []string{"id", "name", "age"},
+				Source:      sourceConfig,
+				Targets:     []TableConfig{target1Config, target2Config, target3Config},
+			},
+		},
+	}
+
+	results, err := config.ExecJob("users")
+	require.NoError(t, err)
+	require.Len(t, results.Results, 3)
+
+	for _, result := range results.Results {
+		assert.NoError(t, result.Error)
+
+		if result.Target.Label == "already in sync" {
+			assert.False(t, result.Synced)
+		} else {
+			assert.True(t, result.Synced)
+		}
+	}
+
+	// Check that the data was copied to each target
+	for _, target := range []table{target1, target2, target3} {
+		rows, err := target.Queryx("SELECT * FROM users")
+		require.NoError(t, err)
+
+		defer rows.Close()
+
+		var data [][]any
+		for rows.Next() {
+			cols, err := rows.SliceScan()
+			require.NoError(t, err)
+			data = append(data, cols)
+		}
+
+		require.Equal(t, len(expectedData), len(data))
+
+		// Make sure the data is correct
+		for i := range expectedData {
+			require.Len(t, data[i], len(expectedData[i]))
+			for j := range expectedData[i] {
+				require.EqualValues(t, expectedData[i][j], data[i][j])
+			}
 		}
 	}
 }
