@@ -15,25 +15,47 @@ type Config struct {
 
 // JobConfig contains the configuration for a single sync job
 type JobConfig struct {
-	Name        string
-	Columns     []string
-	PrimaryKey  string   `yaml:"primaryKey"`
+	// Name uniquely identifies a job
+	Name string
+
+	// Columns defines the columns for the source and target tables
+	Columns []string
+
+	// Can either specify one primary key or multiple primary key columns
+	// If neither is specified, the default is "id"
+	// The primary key(s) must be a subset of Columns
+
+	// PrimaryKey is the name of a single primary key column
+	PrimaryKey string `yaml:"primaryKey"`
+
+	// PrimaryKeys is a list of composite primary key columns
 	PrimaryKeys []string `yaml:"primaryKeys"`
-	Source      TableConfig
-	Targets     []TableConfig
+
+	Source  TableConfig
+	Targets []TableConfig
 }
 
 // TableConfig contains the configuration for a single table (source or target)
 type TableConfig struct {
-	Label    string
-	Driver   string
-	DSN      string
+	// Label is an optional human-readable name for the table
+	Label string
+
+	// Table is the name of the table
+	Table string
+
+	// Driver is the database driver to use. For now, only sqlite3 and mysql are supported
+	Driver string
+
+	// DSN overrides any other connection parameters
+	DSN string
+
+	// If DSN is not explicitly provided, it will be inferred from the below parameters
+
 	User     string
 	Password string
 	Host     string
 	Port     int
 	DB       string
-	Table    string
 }
 
 // LoadConfig reads a config file and makes sure it is valid
@@ -114,6 +136,8 @@ func (c Config) validate() error {
 			return err
 		}
 	}
+
+	// TODO: make sure each job name is unique
 
 	return nil
 }
