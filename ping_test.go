@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPing(t *testing.T) {
+func TestPingAllJobs(t *testing.T) {
 	sourceDSN := "file:test_ping_source.db?mode=memory&cache=shared"
 	target1DSN := "file:test_ping_target1.db?mode=memory&cache=shared"
 	target2DSN := "file:test_ping_target2.db?mode=memory&cache=shared"
@@ -41,7 +41,7 @@ func TestPing(t *testing.T) {
 		},
 	}
 
-	results, err := config.Ping(30 * time.Second)
+	results, err := config.PingAllJobs(30 * time.Second)
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 
@@ -83,7 +83,7 @@ func TestPing(t *testing.T) {
 		`)
 	}
 
-	results, err = config.Ping(30 * time.Second)
+	results, err = config.PingAllJobs(30 * time.Second)
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 
@@ -105,7 +105,7 @@ func (m sleepPingTarget) ping(columns []string) error {
 	return nil
 }
 
-func TestPing_timeout(t *testing.T) {
+func TestPingWithTimeout(t *testing.T) {
 	target := sleepPingTarget{duration: 500 * time.Millisecond}
 
 	// Should error when the ping operation times out
