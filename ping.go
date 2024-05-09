@@ -9,11 +9,13 @@ import (
 	sq "github.com/Masterminds/squirrel"
 )
 
+// PingResult contains the results of pinging all of the referenced tables for a single job
 type PingResult struct {
 	Job    JobConfig
 	Tables []TablePingResult
 }
 
+// TablePingResult contains the results of pinging a single table
 type TablePingResult struct {
 	Label  string
 	Config TableConfig

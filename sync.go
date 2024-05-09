@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+// SyncResult contains the results of syncing a single target table
 type SyncResult struct {
 	Target         TableConfig
 	TargetChecksum string

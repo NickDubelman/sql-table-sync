@@ -7,11 +7,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config contains the sync jobs and any other configuration for the sync process
 type Config struct {
 	Driver string
 	Jobs   []JobConfig
 }
 
+// JobConfig contains the configuration for a single sync job
 type JobConfig struct {
 	Name        string
 	Columns     []string
@@ -21,6 +23,7 @@ type JobConfig struct {
 	Targets     []TableConfig
 }
 
+// TableConfig contains the configuration for a single table (source or target)
 type TableConfig struct {
 	Label    string
 	Driver   string
@@ -33,6 +36,7 @@ type TableConfig struct {
 	Table    string
 }
 
+// LoadConfig reads a config file and makes sure it is valid
 func LoadConfig(filename string) (Config, error) {
 	fileBytes, err := os.ReadFile(filename)
 	if err != nil {
