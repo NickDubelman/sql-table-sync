@@ -19,12 +19,31 @@ type SyncResult struct {
 	Error          error
 }
 
-func syncTargets(source table, targets []table) (string, []SyncResult, error) {
-	if source.DB == nil {
-		// Connect to source if it's not already connected
-		if err := source.connect(); err != nil {
-			return "", nil, fmt.Errorf("failed to connect to source: %w", err)
+func (job JobConfig) syncTargets() (string, []SyncResult, error) {
+	primaryKeyIndices := job.getPrimaryKeyIndices()
+
+	source := table{
+		config:            job.Source,
+		primaryKeys:       job.PrimaryKeys,
+		primaryKeyIndices: primaryKeyIndices,
+		columns:           job.Columns,
+	}
+
+	// Connect to the source
+	if err := source.connect(); err != nil {
+		return "", nil, fmt.Errorf("failed to connect to source: %w", err)
+	}
+
+	targets := make([]table, len(job.Targets))
+	for i, target := range job.Targets {
+		targets[i] = table{
+			config:            target,
+			primaryKeys:       job.PrimaryKeys,
+			primaryKeyIndices: primaryKeyIndices,
+			columns:           job.Columns,
 		}
+
+		targets[i].connect() // Connect to each target
 	}
 
 	// Get all rows from the source table and put them in a map by their primary key
@@ -46,7 +65,7 @@ func syncTargets(source table, targets []table) (string, []SyncResult, error) {
 		go func(target table) {
 			defer wg.Done()
 
-			checksum, synced, err := syncTarget(target, sourceChecksum, sourceMap)
+			checksum, synced, err := target.syncTarget(sourceChecksum, sourceMap)
 
 			resultChan <- SyncResult{
 				Target:         target.config,
@@ -69,18 +88,11 @@ func syncTargets(source table, targets []table) (string, []SyncResult, error) {
 	return sourceChecksum, results, nil
 }
 
-func syncTarget(
-	target table,
+func (t table) syncTarget(
 	sourceChecksum string,
 	sourceMap map[primaryKeyTuple][]any,
 ) (string, bool, error) {
-	if target.DB == nil {
-		if err := target.connect(); err != nil {
-			return "", false, fmt.Errorf("failed to connect to target: %w", err)
-		}
-	}
-
-	targetEntries, targetMap, err := target.getEntries()
+	targetEntries, targetMap, err := t.getEntries()
 	if err != nil {
 		return "", false, err
 	}
@@ -95,15 +107,15 @@ func syncTarget(
 		return targetChecksum, false, nil
 	}
 
-	tableName := target.config.Table
+	tableName := t.config.Table
 
 	// Iterate over source rows and perform INSERTs or UPDATEs as needed
 	for key, val := range sourceMap {
 		// If the key doesn't exist in targetMap, then we need to INSERT
 		if _, ok := targetMap[key]; !ok {
-			insert := sq.Insert(tableName).Columns(target.columns...).Values(val...)
+			insert := sq.Insert(tableName).Columns(t.columns...).Values(val...)
 
-			if _, err := insert.RunWith(target.DB).Exec(); err != nil {
+			if _, err := insert.RunWith(t.DB).Exec(); err != nil {
 				return "", false, err
 			}
 		} else {
@@ -119,14 +131,14 @@ func syncTarget(
 			// There is a diff, perform an UPDATE
 			update := sq.
 				Update(tableName).
-				Where(key.whereClause(target.primaryKeys, target.primaryKeyIndices))
+				Where(key.whereClause(t.primaryKeys, t.primaryKeyIndices))
 
 			pkSet := map[string]struct{}{}
-			for _, pk := range target.primaryKeys {
+			for _, pk := range t.primaryKeys {
 				pkSet[pk] = struct{}{}
 			}
 
-			for i, col := range target.columns {
+			for i, col := range t.columns {
 				if _, ok := pkSet[col]; ok {
 					continue // Skip updating primary key columns
 				}
@@ -134,7 +146,7 @@ func syncTarget(
 				update = update.Set(col, val[i])
 			}
 
-			if _, err := update.RunWith(target.DB).Exec(); err != nil {
+			if _, err := update.RunWith(t.DB).Exec(); err != nil {
 				return "", false, err
 			}
 		}
@@ -144,32 +156,14 @@ func syncTarget(
 	for key := range targetMap {
 		delete := sq.
 			Delete(tableName).
-			Where(key.whereClause(target.primaryKeys, target.primaryKeyIndices))
+			Where(key.whereClause(t.primaryKeys, t.primaryKeyIndices))
 
-		if _, err := delete.RunWith(target.DB).Exec(); err != nil {
+		if _, err := delete.RunWith(t.DB).Exec(); err != nil {
 			return "", false, err
 		}
 	}
 
 	return targetChecksum, true, nil
-}
-
-func checksumData(data [][]any) (string, error) {
-	// Serialize the data to JSON
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return "", err
-	}
-
-	// Compute the MD5 checksum of the JSON data
-	hash := md5.New()
-	if _, err := hash.Write(jsonData); err != nil {
-		return "", err
-	}
-
-	// Convert the checksum to a hexadecimal string
-	checksum := hex.EncodeToString(hash.Sum(nil))
-	return checksum, nil
 }
 
 func (t table) getEntries() ([][]any, map[primaryKeyTuple][]any, error) {
@@ -223,6 +217,24 @@ func (t table) getEntries() ([][]any, map[primaryKeyTuple][]any, error) {
 	return entryList, entryMap, nil
 }
 
+func checksumData(data [][]any) (string, error) {
+	// Serialize the data to JSON
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	// Compute the MD5 checksum of the JSON data
+	hash := md5.New()
+	if _, err := hash.Write(jsonData); err != nil {
+		return "", err
+	}
+
+	// Convert the checksum to a hexadecimal string
+	checksum := hex.EncodeToString(hash.Sum(nil))
+	return checksum, nil
+}
+
 func (job JobConfig) getPrimaryKeyIndices() []int {
 	// Create a map of column names to their index in the columns slice
 	columnIndices := map[string]int{}
@@ -243,11 +255,7 @@ func (job JobConfig) getPrimaryKeyIndices() []int {
 
 // We are not allowed to have a slice as a map key, so we use a struct instead
 // For now, we limit to a maximum of 3 primary key columns
-type primaryKeyTuple struct {
-	First  any
-	Second any
-	Third  any
-}
+type primaryKeyTuple struct{ First, Second, Third any }
 
 func (key primaryKeyTuple) whereClause(primaryKeys []string, primaryKeyIndices []int) sq.Eq {
 	where := sq.Eq{}

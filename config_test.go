@@ -24,7 +24,7 @@ func TestLoadConfig(t *testing.T) {
                 primaryKey: id
                 source:
                   driver: sqlite3
-                  dsn: ":memory:"
+                  dsn: "my_fake_dsn"
                   user: nick
                   password: greatsuccess
                   host: 0.0.0.0
@@ -50,7 +50,7 @@ func TestLoadConfig(t *testing.T) {
 
 		source := cfg.Jobs[0].Source
 		assert.Equal(t, "sqlite3", source.Driver)
-		assert.Equal(t, ":memory:", source.DSN)
+		assert.Equal(t, "my_fake_dsn", source.DSN)
 		assert.Equal(t, "nick", source.User)
 		assert.Equal(t, "greatsuccess", source.Password)
 		assert.Equal(t, "0.0.0.0", source.Host)

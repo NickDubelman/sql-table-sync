@@ -24,26 +24,7 @@ func (c Config) ExecJob(jobName string) (ExecJobResult, error) {
 		return ExecJobResult{}, fmt.Errorf("job '%s' not found in config", jobName)
 	}
 
-	primaryKeyIndices := job.getPrimaryKeyIndices()
-
-	source := table{
-		config:            job.Source,
-		primaryKeys:       job.PrimaryKeys,
-		primaryKeyIndices: primaryKeyIndices,
-		columns:           job.Columns,
-	}
-
-	targets := make([]table, len(job.Targets))
-	for i, target := range job.Targets {
-		targets[i] = table{
-			config:            target,
-			primaryKeys:       job.PrimaryKeys,
-			primaryKeyIndices: primaryKeyIndices,
-			columns:           job.Columns,
-		}
-	}
-
-	checksum, results, err := syncTargets(source, targets)
+	checksum, results, err := job.syncTargets()
 	return ExecJobResult{checksum, results}, err
 }
 
