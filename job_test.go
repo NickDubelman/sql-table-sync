@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Masterminds/squirrel"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +37,7 @@ func TestExecJob(t *testing.T) {
 		{3, "Charlie", 35},
 	}
 
-	insert := squirrel.Insert(sourceConfig.Table).Columns("id", "name", "age")
+	insert := sq.Insert(sourceConfig.Table).Columns("id", "name", "age")
 
 	for _, row := range expectedData {
 		insert = insert.Values(row...)
@@ -167,7 +167,7 @@ func TestExecJob_multiple_primary_key(t *testing.T) {
 		{"Charlie", 35, "green"},
 	}
 
-	insert := squirrel.Insert(sourceConfig.Table).Columns("name", "age", "favoriteColor")
+	insert := sq.Insert(sourceConfig.Table).Columns("name", "age", "favoriteColor")
 
 	for _, row := range expectedData {
 		insert = insert.Values(row...)
@@ -249,7 +249,8 @@ func TestExecJob_mysql(t *testing.T) {
 			CREATE TABLE IF NOT EXISTS %s (
 				id INT PRIMARY KEY NOT NULL,
 				name TEXT NOT NULL,
-				age INT NOT NULL
+				age INT NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 			)
 		`, name)
 	}
@@ -268,12 +269,14 @@ func TestExecJob_mysql(t *testing.T) {
 	source.MustExec(createTable(sourceConfig.Table))
 
 	expectedData := [][]any{
-		{1, "Alice", 30},
-		{2, "Bob", 25},
-		{3, "Charlie", 35},
+		{1, "Alice", 30, "2024-05-29 00:00:00"},
+		{2, "Bob", 25, "2024-04-20 00:00:00"},
+		{3, "Charlie", 35, "2024-04-27 00:00:00"},
 	}
 
-	insert := squirrel.Insert(sourceConfig.Table).Columns("id", "name", "age")
+	insert := sq.
+		Insert(sourceConfig.Table).
+		Columns("id", "name", "age", "created_at")
 
 	for _, row := range expectedData {
 		insert = insert.Values(row...)
@@ -342,7 +345,7 @@ func TestExecJob_mysql(t *testing.T) {
 	target3.MustExec(createTable(target3Config.Table))
 
 	// table3 is already in sync
-	insert = squirrel.Insert(target3Config.Table).Columns("id", "name", "age")
+	insert = sq.Insert(target3Config.Table).Columns("id", "name", "age", "created_at")
 
 	for _, row := range expectedData {
 		insert = insert.Values(row...)
@@ -357,7 +360,7 @@ func TestExecJob_mysql(t *testing.T) {
 			{
 				Name:        "users",
 				PrimaryKeys: []string{"id"},
-				Columns:     []string{"id", "name", "age"},
+				Columns:     []string{"id", "name", "age", "created_at"},
 				Source:      sourceConfig,
 				Targets:     []TableConfig{target1Config, target2Config, target3Config},
 			},
