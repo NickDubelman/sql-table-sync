@@ -30,4 +30,5 @@ jobs:
         env:
           MYSQL_DB_PORT: 3306
           MYSQL_DB_NAME: ci_tests
+          MYSQL_DB_HOST: mysql
         run: go test -v ./...

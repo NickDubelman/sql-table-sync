@@ -240,9 +240,10 @@ func TestExecJob_multiple_primary_key(t *testing.T) {
 }
 
 func TestExecJob_mysql(t *testing.T) {
+	dbName := os.Getenv("MYSQL_DB_NAME")
+	dbHost := os.Getenv("MYSQL_DB_HOST")
 	dbPortStr := os.Getenv("MYSQL_DB_PORT")
 	dbPort, _ := strconv.Atoi(dbPortStr)
-	dbName := os.Getenv("MYSQL_DB_NAME")
 
 	createTable := func(name string) string {
 		return fmt.Sprintf(`
@@ -258,8 +259,9 @@ func TestExecJob_mysql(t *testing.T) {
 		Driver: "mysql",
 		Table:  "users",
 		User:   "root",
-		Port:   dbPort,
 		DB:     dbName,
+		Host:   dbHost,
+		Port:   dbPort,
 	}
 
 	source := table{config: sourceConfig}
@@ -289,8 +291,9 @@ func TestExecJob_mysql(t *testing.T) {
 		Driver: "mysql",
 		Table:  "users2",
 		User:   "root",
-		Port:   dbPort,
 		DB:     dbName,
+		Host:   dbHost,
+		Port:   dbPort,
 	}
 
 	target1 := table{config: target1Config}
@@ -316,8 +319,9 @@ func TestExecJob_mysql(t *testing.T) {
 		Driver: "mysql",
 		Table:  "users3",
 		User:   "root",
-		Port:   dbPort,
 		DB:     dbName,
+		Host:   dbHost,
+		Port:   dbPort,
 	}
 
 	target2 := table{config: target2Config}
@@ -332,8 +336,9 @@ func TestExecJob_mysql(t *testing.T) {
 		Driver: "mysql",
 		Table:  "users4",
 		User:   "root",
-		Port:   dbPort,
 		DB:     dbName,
+		Host:   dbHost,
+		Port:   dbPort,
 	}
 
 	target3 := table{config: target3Config}
