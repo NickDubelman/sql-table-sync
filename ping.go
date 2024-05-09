@@ -80,8 +80,32 @@ func (c Config) Ping(timeout time.Duration) ([]PingResult, error) {
 	return results, nil
 }
 
+// Ping the source and targets with a timeout
+func pingWithTimeout(timeout time.Duration, config pingTarget, columns []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Create a channel to receive the ping result
+	resultChan := make(chan error, 1)
+
+	go func() {
+		resultChan <- config.ping(columns)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("ping operation timed out") // Timeout exceeded
+	case err := <-resultChan:
+		return err // Ping operation completed, return the result
+	}
+}
+
+type pingTarget interface {
+	ping(columns []string) error
+}
+
 // Ping the source and targets for a given TableConfig
-func ping(config TableConfig, columns []string) error {
+func (config TableConfig) ping(columns []string) error {
 	t := table{config: config}
 	if err := t.connect(); err != nil {
 		return err
@@ -102,24 +126,4 @@ func ping(config TableConfig, columns []string) error {
 	defer rows.Close()
 
 	return nil
-}
-
-// Ping the source and targets with a timeout
-func pingWithTimeout(timeout time.Duration, config TableConfig, columns []string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	// Create a channel to receive the ping result
-	resultChan := make(chan error, 1)
-
-	go func() {
-		resultChan <- ping(config, columns)
-	}()
-
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("ping operation timed out") // Timeout exceeded
-	case err := <-resultChan:
-		return err // Ping operation completed, return the result
-	}
 }
