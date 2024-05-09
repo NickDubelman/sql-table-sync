@@ -241,7 +241,6 @@ func TestExecJob_multiple_primary_key(t *testing.T) {
 
 func TestExecJob_mysql(t *testing.T) {
 	dbName := os.Getenv("MYSQL_DB_NAME")
-	dbHost := os.Getenv("MYSQL_DB_HOST")
 	dbPortStr := os.Getenv("MYSQL_DB_PORT")
 	dbPort, _ := strconv.Atoi(dbPortStr)
 
@@ -260,7 +259,6 @@ func TestExecJob_mysql(t *testing.T) {
 		Table:  "users",
 		User:   "root",
 		DB:     dbName,
-		Host:   dbHost,
 		Port:   dbPort,
 	}
 
@@ -292,7 +290,6 @@ func TestExecJob_mysql(t *testing.T) {
 		Table:  "users2",
 		User:   "root",
 		DB:     dbName,
-		Host:   dbHost,
 		Port:   dbPort,
 	}
 
@@ -320,7 +317,6 @@ func TestExecJob_mysql(t *testing.T) {
 		Table:  "users3",
 		User:   "root",
 		DB:     dbName,
-		Host:   dbHost,
 		Port:   dbPort,
 	}
 
@@ -337,7 +333,6 @@ func TestExecJob_mysql(t *testing.T) {
 		Table:  "users4",
 		User:   "root",
 		DB:     dbName,
-		Host:   dbHost,
 		Port:   dbPort,
 	}
 
