@@ -383,7 +383,8 @@ func TestExecJob_mysql(t *testing.T) {
 
 	// Check that the data was copied to each target
 	for _, target := range []table{target1, target2, target3} {
-		rows, err := target.Queryx("SELECT * FROM users")
+		query := fmt.Sprintf("SELECT * FROM %s", target.config.Table)
+		rows, err := target.Queryx(query)
 		require.NoError(t, err)
 
 		defer rows.Close()
@@ -403,6 +404,117 @@ func TestExecJob_mysql(t *testing.T) {
 			for j := range expectedData[i] {
 				require.EqualValues(t, expectedData[i][j], data[i][j])
 			}
+		}
+	}
+}
+
+func TestExecJob_mysql_multiple_primary_key(t *testing.T) {
+	dbName := os.Getenv("MYSQL_DB_NAME")
+	dbPortStr := os.Getenv("MYSQL_DB_PORT")
+	dbPort, _ := strconv.Atoi(dbPortStr)
+
+	createTable := func(name string) string {
+		return fmt.Sprintf(`
+			CREATE TABLE IF NOT EXISTS %s (
+				name VARCHAR(69) NOT NULL,
+				age INT NOT NULL,
+				favoriteColor TEXT NOT NULL,
+				PRIMARY KEY (age, name)
+			)
+		`, name)
+	}
+
+	sourceConfig := TableConfig{
+		Driver: "mysql",
+		Table:  "users_multi_pk",
+		User:   "root",
+		DB:     dbName,
+		Port:   dbPort,
+	}
+
+	source := table{config: sourceConfig}
+	err := source.connect()
+	require.NoError(t, err)
+	source.MustExec(createTable(sourceConfig.Table))
+
+	expectedData := [][]any{
+		{"Bob", 25, "blue"},
+		{"Alice", 30, "red"},
+		{"Charlie", 35, "green"},
+	}
+
+	insert := sq.Insert(sourceConfig.Table).Columns("name", "age", "favoriteColor")
+
+	for _, row := range expectedData {
+		insert = insert.Values(row...)
+	}
+
+	sql, args, err := insert.ToSql()
+	require.NoError(t, err)
+
+	// Insert some data into the source
+	source.MustExec(sql, args...)
+
+	target1Config := TableConfig{
+		Driver: "mysql",
+		Table:  "users_multi_pk2",
+		User:   "root",
+		DB:     dbName,
+		Port:   dbPort,
+	}
+
+	target1 := table{config: target1Config}
+	err = target1.connect()
+	require.NoError(t, err)
+	target1.MustExec(createTable(target1Config.Table))
+
+	// target1 has no data
+
+	primaryKeys := []string{"age", "name"}
+
+	config := Config{
+		Jobs: []JobConfig{
+			{
+				Name:        "users",
+				PrimaryKeys: primaryKeys,
+				Columns:     []string{"name", "age", "favoriteColor"},
+				Source:      sourceConfig,
+				Targets:     []TableConfig{target1Config},
+			},
+		},
+	}
+
+	results, err := config.ExecJob("users")
+	require.NoError(t, err)
+	require.Len(t, results.Results, 1)
+
+	for _, result := range results.Results {
+		assert.NoError(t, result.Error)
+		assert.True(t, result.Synced)
+	}
+
+	// Check that the data was copied to the target
+	order := strings.Join(primaryKeys, ", ")
+	query := fmt.Sprintf("SELECT * FROM %s ORDER BY %s", target1.config.Table, order)
+	rows, err := target1.Queryx(query)
+	require.NoError(t, err)
+
+	defer rows.Close()
+
+	var data [][]any
+	for rows.Next() {
+		cols, err := rows.SliceScan()
+		require.NoError(t, err)
+		data = append(data, cols)
+	}
+
+	require.Equal(t, len(expectedData), len(data))
+
+	// Make sure the data is correct
+	for i := range expectedData {
+		require.Len(t, data[i], len(expectedData[i]))
+		for j := range expectedData[i] {
+			require.EqualValues(t, expectedData[i][j], data[i][j])
 		}
 	}
 }

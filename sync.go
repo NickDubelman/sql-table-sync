@@ -197,13 +197,20 @@ func (t table) getEntries() ([][]any, map[primaryKeyTuple][]any, error) {
 
 		pkTuple := primaryKeyTuple{}
 		for i, idx := range t.primaryKeyIndices {
+			val := cols[idx]
+
+			// Convert []byte to string (because []byte is unhashable and can't be in a map key)
+			if _, ok := val.([]byte); ok {
+				val = string(val.([]byte))
+			}
+
 			switch i {
 			case 0:
-				pkTuple.First = cols[idx]
+				pkTuple.First = val
 			case 1:
-				pkTuple.Second = cols[idx]
+				pkTuple.Second = val
 			case 2:
-				pkTuple.Third = cols[idx]
+				pkTuple.Third = val
 			}
 		}
 
