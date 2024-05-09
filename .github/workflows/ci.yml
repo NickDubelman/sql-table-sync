@@ -12,6 +12,8 @@ jobs:
         env:
           MYSQL_DATABASE: ci_tests
           MYSQL_ALLOW_EMPTY_PASSWORD: '1'
+        ports:
+          - 3306:3306
         options: >-
           --health-cmd "mysqladmin ping"
           --health-interval 20s
@@ -30,5 +32,4 @@ jobs:
         env:
           MYSQL_DB_PORT: 3306
           MYSQL_DB_NAME: ci_tests
-          MYSQL_DB_HOST: mysql
         run: go test -v ./...
