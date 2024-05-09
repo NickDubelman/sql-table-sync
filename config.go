@@ -131,13 +131,27 @@ func (c Config) validate() error {
 		return fmt.Errorf("no jobs found in config")
 	}
 
+	// Make sure each job name is unique
+	jobNames := map[string]int{} // name -> count
+
 	for _, job := range c.Jobs {
 		if err := job.validate(); err != nil {
 			return err
 		}
+
+		jobNames[job.Name]++
 	}
 
-	// TODO: make sure each job name is unique
+	var duplicateNames []string
+	for name, count := range jobNames {
+		if count > 1 {
+			duplicateNames = append(duplicateNames, name)
+		}
+	}
+
+	if len(duplicateNames) > 0 {
+		return fmt.Errorf("duplicate job names: %v", duplicateNames)
+	}
 
 	return nil
 }

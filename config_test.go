@@ -111,47 +111,77 @@ func TestLoadConfig(t *testing.T) {
 }
 
 func TestValidateConfig(t *testing.T) {
+	validConfig := func() Config {
+		return Config{
+			Jobs: []JobConfig{
+				{
+					Name:        "users",
+					Columns:     []string{"id", "name", "age"},
+					PrimaryKeys: []string{"id"},
+					Source: TableConfig{
+						Table:  "users",
+						Driver: "sqlite3",
+					},
+					Targets: []TableConfig{
+						{
+							Table:  "users2",
+							Driver: "sqlite3",
+						},
+					},
+				},
+			},
+		}
+	}
+
 	type testCase struct {
 		description string
-		config      Config
+		config      func() Config
 		expectedErr string
 	}
 
 	testCases := []testCase{
 		{
 			description: "valid config",
-			config: Config{
-				Jobs: []JobConfig{
-					{
-						Name:        "users",
-						Columns:     []string{"id", "name", "age"},
-						PrimaryKeys: []string{"id"},
-						Source: TableConfig{
-							Table:  "users",
-							Driver: "sqlite3",
-						},
-						Targets: []TableConfig{
-							{
-								Table:  "users2",
-								Driver: "sqlite3",
-							},
-						},
-					},
-				},
-			},
+			config:      validConfig,
 		},
 		{
 			description: "no jobs",
-			config: Config{
-				Jobs: nil,
+			config: func() Config {
+				cfg := validConfig()
+				cfg.Jobs = nil
+				return cfg
 			},
 			expectedErr: "no jobs found in config",
+		},
+		{
+			description: "duplicate job name",
+			config: func() Config {
+				cfg := validConfig()
+				cfg.Jobs = append(cfg.Jobs, cfg.Jobs[0])
+				return cfg
+			},
+			expectedErr: "duplicate job names: [users]",
+		},
+		{
+			description: "multiple duplicate job names",
+			config: func() Config {
+				cfg := validConfig()
+				cfg.Jobs = append(cfg.Jobs, cfg.Jobs[0])
+
+				// Add a posts job (twice) so we can test multiple duplicate names
+				otherJob := cfg.Jobs[0]
+				otherJob.Name = "posts"
+				cfg.Jobs = append(cfg.Jobs, otherJob, otherJob)
+
+				return cfg
+			},
+			expectedErr: "duplicate job names: [users posts]",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
-			err := tc.config.validate()
+			err := tc.config().validate()
 			if tc.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
