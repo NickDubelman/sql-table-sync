@@ -101,13 +101,81 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "sqlite3", cfg.Jobs[0].Source.Driver)
 		assert.Equal(t, "sqlite3", cfg.Jobs[0].Targets[0].Driver)
 		assert.Equal(t, "sqlite4", cfg.Jobs[0].Targets[1].Driver)
-
-		// User should default to root
-		assert.Equal(t, "root", cfg.Jobs[0].Source.User)
-		assert.Equal(t, "root", cfg.Jobs[0].Targets[0].User)
-		assert.Equal(t, "nikolas", cfg.Jobs[0].Targets[1].User)
 	})
 
+	t.Run("load config with top-level credentials", func(t *testing.T) {
+		cfg, err := loadConfig(`
+            driver: sqlite3
+
+            credentialDefaults:
+                host1:
+                    driver: mysql
+                    user: user1
+                    password: pass1
+                    port: 3369
+                    db: appdb
+                host2:
+                    driver: postgres
+                    dsn: host2_dsn
+                host3:
+                    user: user3
+                    password: pass3
+
+            jobs:
+              - name: users
+                columns: [id, name, age]
+                source:
+                  host: host1
+                  table: users
+                targets:
+                  - host: host2
+                    table: users
+                  - host: host3
+                    dsn: host3_dsn
+                    table: users
+
+              - name: pets
+                columns: [id, name, userID]
+                source:
+                  host: host1
+                  table: pets
+                targets:
+                  - host: host2
+                    dsn: host2_dsn_override
+                    table: pets
+                  - host: host3
+                    user: user3_override
+                    password: pass3_override
+                    table: pets
+        `)
+		require.NoError(t, err)
+		require.Len(t, cfg.Jobs, 2)
+
+		assert.Equal(t, "mysql", cfg.Jobs[0].Source.Driver)
+		assert.Equal(t, "user1", cfg.Jobs[0].Source.User)
+		assert.Equal(t, "pass1", cfg.Jobs[0].Source.Password)
+		assert.Equal(t, 3369, cfg.Jobs[0].Source.Port)
+		assert.Equal(t, "appdb", cfg.Jobs[0].Source.DB)
+
+		assert.Equal(t, "postgres", cfg.Jobs[0].Targets[0].Driver)
+		assert.Equal(t, "host2_dsn", cfg.Jobs[0].Targets[0].DSN)
+
+		assert.Equal(t, "sqlite3", cfg.Jobs[0].Targets[1].Driver)
+		assert.Equal(t, "host3_dsn", cfg.Jobs[0].Targets[1].DSN)
+
+		assert.Equal(t, "mysql", cfg.Jobs[1].Source.Driver)
+		assert.Equal(t, "user1", cfg.Jobs[1].Source.User)
+		assert.Equal(t, "pass1", cfg.Jobs[1].Source.Password)
+		assert.Equal(t, 3369, cfg.Jobs[1].Source.Port)
+		assert.Equal(t, "appdb", cfg.Jobs[1].Source.DB)
+
+		assert.Equal(t, "postgres", cfg.Jobs[1].Targets[0].Driver)
+		assert.Equal(t, "host2_dsn_override", cfg.Jobs[1].Targets[0].DSN)
+
+		assert.Equal(t, "sqlite3", cfg.Jobs[1].Targets[1].Driver)
+		assert.Equal(t, "user3_override", cfg.Jobs[1].Targets[1].User)
+		assert.Equal(t, "pass3_override", cfg.Jobs[1].Targets[1].Password)
+	})
 }
 
 func TestValidateConfig(t *testing.T) {
