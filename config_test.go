@@ -124,6 +124,7 @@ func TestLoadConfig(t *testing.T) {
                     driver: postgres
                     dsn: host2_dsn
                 host3:
+                    label: host3_label
                     user: user3
                     password: pass3
 
@@ -149,7 +150,8 @@ func TestLoadConfig(t *testing.T) {
                   - host: host2
                     dsn: host2_dsn_override
                     table: pets
-                  - host: host3
+                  - label: host3_label_override
+                    host: host3
                     user: user3_override
                     password: pass3_override
                     table: pets
@@ -174,6 +176,7 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "postgres", usersJob.Targets[0].Driver)
 		assert.Equal(t, "host2_dsn", usersJob.Targets[0].DSN)
 
+		assert.Equal(t, "host3_label", usersJob.Targets[1].Label)
 		assert.Equal(t, "sqlite3", usersJob.Targets[1].Driver)
 		assert.Equal(t, "host3_dsn", usersJob.Targets[1].DSN)
 
@@ -186,6 +189,7 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "postgres", petsJob.Targets[0].Driver)
 		assert.Equal(t, "host2_dsn_override", petsJob.Targets[0].DSN)
 
+		assert.Equal(t, "host3_label_override", petsJob.Targets[1].Label)
 		assert.Equal(t, "sqlite3", petsJob.Targets[1].Driver)
 		assert.Equal(t, "user3_override", petsJob.Targets[1].User)
 		assert.Equal(t, "pass3_override", petsJob.Targets[1].Password)

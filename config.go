@@ -15,7 +15,7 @@ type Config struct {
 
 type ConfigDefaults struct {
 	Driver string
-	Hosts  map[string]CredentialsConfig
+	Hosts  map[string]HostDefaults
 }
 
 // JobConfig contains the configuration for a single sync job
@@ -37,7 +37,8 @@ type JobConfig struct {
 	Targets []TableConfig
 }
 
-type CredentialsConfig struct {
+type HostDefaults struct {
+	Label    string
 	Driver   string
 	DSN      string
 	User     string
@@ -210,12 +211,17 @@ func imposeDefaultCredentials(
 	table TableConfig,
 	defaults ConfigDefaults,
 ) TableConfig {
-	var hostDefaults CredentialsConfig
+	var hostDefaults HostDefaults
 	if table.Host != "" {
 		hostDefaults = defaults.Hosts[table.Host]
 	}
 
-	// If Driver is not empty, set it to the default driver
+	// If Label is empty, set it to the host's default
+	if table.Label == "" {
+		table.Label = hostDefaults.Label
+	}
+
+	// If Driver is empty, set it to either the global default or the host's defaults
 	if table.Driver == "" {
 		if hostDefaults.Driver != "" {
 			table.Driver = hostDefaults.Driver // Default from the credentials for the host
@@ -225,27 +231,27 @@ func imposeDefaultCredentials(
 	}
 
 	if table.DSN == "" {
-		// If DSN is not provided, default to the DSN from the credential map
+		// If DSN is empty, set it to the host's default
 		table.DSN = hostDefaults.DSN
 	}
 
 	if table.User == "" {
-		// If User is not provided, default to the User from the credential map
+		// If User is empty, set it to the host's default
 		table.User = hostDefaults.User
 	}
 
 	if table.Password == "" {
-		// If Password is not provided, default to the Password from the credential map
+		// If Password is empty, set it to the host's default
 		table.Password = hostDefaults.Password
 	}
 
 	if table.Port == 0 {
-		// If Port is not provided, default to the Port from the credential map
+		// If Port is empty, set it to the host's default
 		table.Port = hostDefaults.Port
 	}
 
 	if table.DB == "" {
-		// If DB is not provided, default to the DB from the credential map
+		// If DB is empty, set it to the host's default
 		table.DB = hostDefaults.DB
 	}
 
