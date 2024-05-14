@@ -5,7 +5,7 @@ credentialDefaults:
     user: root
 
 jobs:
-  - name: users
+  users:
     columns: [id, name, age]
     source:
       table: users_source

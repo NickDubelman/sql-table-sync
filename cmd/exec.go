@@ -20,12 +20,14 @@ var execCmd = &cobra.Command{
 		if len(args) == 0 {
 			results, errs := config.ExecAllJobs()
 
-			for i, job := range config.Jobs {
-				if i != 0 {
+			first := true
+			for jobName := range config.Jobs {
+				if !first {
+					first = false
 					fmt.Println() // Add a newline between job results
 				}
 
-				printExecOutput(job.Name, results[i], errs[i])
+				printExecOutput(jobName, results[jobName], errs[jobName])
 			}
 		} else {
 			for i, jobName := range args {

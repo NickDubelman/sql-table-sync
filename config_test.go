@@ -19,7 +19,7 @@ func TestLoadConfig(t *testing.T) {
 	t.Run("load valid config", func(t *testing.T) {
 		cfg, err := loadConfig(`
             jobs:
-              - name: users
+              users:
                 columns: [id, name, age]
                 primaryKey: id
                 source:
@@ -43,12 +43,14 @@ func TestLoadConfig(t *testing.T) {
         `)
 		require.NoError(t, err)
 		require.Len(t, cfg.Jobs, 1)
+		jobName := "users"
+		require.Contains(t, cfg.Jobs, jobName)
+		job := cfg.Jobs[jobName]
 
-		assert.Equal(t, "users", cfg.Jobs[0].Name)
-		assert.Equal(t, []string{"id", "name", "age"}, cfg.Jobs[0].Columns)
-		assert.Equal(t, "id", cfg.Jobs[0].PrimaryKey)
+		assert.Equal(t, []string{"id", "name", "age"}, job.Columns)
+		assert.Equal(t, "id", job.PrimaryKey)
 
-		source := cfg.Jobs[0].Source
+		source := job.Source
 		assert.Equal(t, "sqlite3", source.Driver)
 		assert.Equal(t, "my_fake_dsn", source.DSN)
 		assert.Equal(t, "nick", source.User)
@@ -58,7 +60,7 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "appdb", source.DB)
 		assert.Equal(t, "users", source.Table)
 
-		targets := cfg.Jobs[0].Targets
+		targets := job.Targets
 		require.Len(t, targets, 2)
 		assert.Empty(t, targets[0].DSN)
 		assert.Equal(t, "1.2.3.4", targets[0].Host)
@@ -77,7 +79,7 @@ func TestLoadConfig(t *testing.T) {
             driver: sqlite3
 
             jobs:
-              - name: users
+              users:
                 columns: [id, name, age]
                 source:
                   table: users
@@ -89,18 +91,21 @@ func TestLoadConfig(t *testing.T) {
         `)
 		require.NoError(t, err)
 		require.Len(t, cfg.Jobs, 1)
+		jobName := "users"
+		require.Contains(t, cfg.Jobs, jobName)
+		job := cfg.Jobs[jobName]
 
 		// PrimaryKey is empty, so it should default to "id"
-		assert.Equal(t, "id", cfg.Jobs[0].PrimaryKey)
+		assert.Equal(t, "id", job.PrimaryKey)
 
 		// PrimaryKey should be copied to PrimaryKeys
-		assert.Equal(t, []string{"id"}, cfg.Jobs[0].PrimaryKeys)
+		assert.Equal(t, []string{"id"}, job.PrimaryKeys)
 
 		// Driver is specified at top level, so it should be copied to each source and target that
 		// does not specify a driver
-		assert.Equal(t, "sqlite3", cfg.Jobs[0].Source.Driver)
-		assert.Equal(t, "sqlite3", cfg.Jobs[0].Targets[0].Driver)
-		assert.Equal(t, "sqlite4", cfg.Jobs[0].Targets[1].Driver)
+		assert.Equal(t, "sqlite3", job.Source.Driver)
+		assert.Equal(t, "sqlite3", job.Targets[0].Driver)
+		assert.Equal(t, "sqlite4", job.Targets[1].Driver)
 	})
 
 	t.Run("load config with top-level credentials", func(t *testing.T) {
@@ -122,7 +127,7 @@ func TestLoadConfig(t *testing.T) {
                     password: pass3
 
             jobs:
-              - name: users
+              users:
                 columns: [id, name, age]
                 source:
                   host: host1
@@ -134,7 +139,7 @@ func TestLoadConfig(t *testing.T) {
                     dsn: host3_dsn
                     table: users
 
-              - name: pets
+              pets:
                 columns: [id, name, userID]
                 source:
                   host: host1
@@ -151,39 +156,46 @@ func TestLoadConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cfg.Jobs, 2)
 
-		assert.Equal(t, "mysql", cfg.Jobs[0].Source.Driver)
-		assert.Equal(t, "user1", cfg.Jobs[0].Source.User)
-		assert.Equal(t, "pass1", cfg.Jobs[0].Source.Password)
-		assert.Equal(t, 3369, cfg.Jobs[0].Source.Port)
-		assert.Equal(t, "appdb", cfg.Jobs[0].Source.DB)
+		usersJobName := "users"
+		require.Contains(t, cfg.Jobs, usersJobName)
+		usersJob := cfg.Jobs[usersJobName]
 
-		assert.Equal(t, "postgres", cfg.Jobs[0].Targets[0].Driver)
-		assert.Equal(t, "host2_dsn", cfg.Jobs[0].Targets[0].DSN)
+		petsJobName := "pets"
+		require.Contains(t, cfg.Jobs, petsJobName)
+		petsJob := cfg.Jobs[petsJobName]
 
-		assert.Equal(t, "sqlite3", cfg.Jobs[0].Targets[1].Driver)
-		assert.Equal(t, "host3_dsn", cfg.Jobs[0].Targets[1].DSN)
+		assert.Equal(t, "mysql", usersJob.Source.Driver)
+		assert.Equal(t, "user1", usersJob.Source.User)
+		assert.Equal(t, "pass1", usersJob.Source.Password)
+		assert.Equal(t, 3369, usersJob.Source.Port)
+		assert.Equal(t, "appdb", usersJob.Source.DB)
 
-		assert.Equal(t, "mysql", cfg.Jobs[1].Source.Driver)
-		assert.Equal(t, "user1", cfg.Jobs[1].Source.User)
-		assert.Equal(t, "pass1", cfg.Jobs[1].Source.Password)
-		assert.Equal(t, 3369, cfg.Jobs[1].Source.Port)
-		assert.Equal(t, "appdb", cfg.Jobs[1].Source.DB)
+		assert.Equal(t, "postgres", usersJob.Targets[0].Driver)
+		assert.Equal(t, "host2_dsn", usersJob.Targets[0].DSN)
 
-		assert.Equal(t, "postgres", cfg.Jobs[1].Targets[0].Driver)
-		assert.Equal(t, "host2_dsn_override", cfg.Jobs[1].Targets[0].DSN)
+		assert.Equal(t, "sqlite3", usersJob.Targets[1].Driver)
+		assert.Equal(t, "host3_dsn", usersJob.Targets[1].DSN)
 
-		assert.Equal(t, "sqlite3", cfg.Jobs[1].Targets[1].Driver)
-		assert.Equal(t, "user3_override", cfg.Jobs[1].Targets[1].User)
-		assert.Equal(t, "pass3_override", cfg.Jobs[1].Targets[1].Password)
+		assert.Equal(t, "mysql", petsJob.Source.Driver)
+		assert.Equal(t, "user1", petsJob.Source.User)
+		assert.Equal(t, "pass1", petsJob.Source.Password)
+		assert.Equal(t, 3369, petsJob.Source.Port)
+		assert.Equal(t, "appdb", petsJob.Source.DB)
+
+		assert.Equal(t, "postgres", petsJob.Targets[0].Driver)
+		assert.Equal(t, "host2_dsn_override", petsJob.Targets[0].DSN)
+
+		assert.Equal(t, "sqlite3", petsJob.Targets[1].Driver)
+		assert.Equal(t, "user3_override", petsJob.Targets[1].User)
+		assert.Equal(t, "pass3_override", petsJob.Targets[1].Password)
 	})
 }
 
 func TestValidateConfig(t *testing.T) {
 	validConfig := func() Config {
 		return Config{
-			Jobs: []JobConfig{
-				{
-					Name:        "users",
+			Jobs: map[string]JobConfig{
+				"users": {
 					Columns:     []string{"id", "name", "age"},
 					PrimaryKeys: []string{"id"},
 					Source: TableConfig{
@@ -222,28 +234,13 @@ func TestValidateConfig(t *testing.T) {
 			expectedErr: "no jobs found in config",
 		},
 		{
-			description: "duplicate job name",
+			description: "empty job name",
 			config: func() Config {
 				cfg := validConfig()
-				cfg.Jobs = append(cfg.Jobs, cfg.Jobs[0])
+				cfg.Jobs[""] = JobConfig{}
 				return cfg
 			},
-			expectedErr: "duplicate job names: [users]",
-		},
-		{
-			description: "multiple duplicate job names",
-			config: func() Config {
-				cfg := validConfig()
-				cfg.Jobs = append(cfg.Jobs, cfg.Jobs[0])
-
-				// Add a posts job (twice) so we can test multiple duplicate names
-				otherJob := cfg.Jobs[0]
-				otherJob.Name = "posts"
-				cfg.Jobs = append(cfg.Jobs, otherJob, otherJob)
-
-				return cfg
-			},
-			expectedErr: "duplicate job names: [posts users]",
+			expectedErr: "all jobs must have a name",
 		},
 	}
 
@@ -263,7 +260,6 @@ func TestValidateConfig(t *testing.T) {
 func TestValidateJobConfig(t *testing.T) {
 	validJob := func() JobConfig {
 		return JobConfig{
-			Name:        "users",
 			Columns:     []string{"id", "name", "age"},
 			PrimaryKeys: []string{"id"},
 			Source: TableConfig{
@@ -291,22 +287,13 @@ func TestValidateJobConfig(t *testing.T) {
 			job:         validJob,
 		},
 		{
-			description: "missing name",
-			job: func() JobConfig {
-				cfg := validJob()
-				cfg.Name = ""
-				return cfg
-			},
-			expectedErr: "job has no name",
-		},
-		{
 			description: "missing columns",
 			job: func() JobConfig {
 				cfg := validJob()
 				cfg.Columns = nil
 				return cfg
 			},
-			expectedErr: "job 'users' does not specify any columns",
+			expectedErr: "does not specify any columns",
 		},
 		{
 			description: "missing primary keys",
@@ -315,7 +302,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.PrimaryKeys = nil
 				return cfg
 			},
-			expectedErr: "job 'users' has no primary keys",
+			expectedErr: "has no primary keys",
 		},
 		{
 			description: "too many primary keys",
@@ -324,7 +311,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.PrimaryKeys = []string{"id", "name", "age", "favoriteColor"}
 				return cfg
 			},
-			expectedErr: "job 'users' has too many primary keys",
+			expectedErr: "has too many primary keys",
 		},
 		{
 			description: "primary key not in columns",
@@ -333,7 +320,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.PrimaryKeys = []string{"favoriteColor"}
 				return cfg
 			},
-			expectedErr: "job 'users' has primary key 'favoriteColor' not in columns",
+			expectedErr: "has primary key 'favoriteColor' not in columns",
 		},
 		{
 			description: "missing source table",
@@ -342,7 +329,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.Source.Table = ""
 				return cfg
 			},
-			expectedErr: "job 'users' source: table name is empty",
+			expectedErr: "source: table name is empty",
 		},
 		{
 			description: "missing source driver",
@@ -351,7 +338,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.Source.Driver = ""
 				return cfg
 			},
-			expectedErr: "job 'users' source: table does not specify a driver",
+			expectedErr: "source: table does not specify a driver",
 		},
 		{
 			description: "missing targets",
@@ -360,7 +347,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.Targets = nil
 				return cfg
 			},
-			expectedErr: "job 'users' has no targets",
+			expectedErr: "has no targets",
 		},
 		{
 			description: "missing target table",
@@ -369,7 +356,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.Targets[0].Table = ""
 				return cfg
 			},
-			expectedErr: "job 'users' target[0]: table name is empty",
+			expectedErr: "target[0]: table name is empty",
 		},
 		{
 			description: "missing target driver",
@@ -378,7 +365,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.Targets[0].Driver = ""
 				return cfg
 			},
-			expectedErr: "job 'users' target[0]: table does not specify a driver",
+			expectedErr: "target[0]: table does not specify a driver",
 		},
 	}
 

@@ -90,9 +90,8 @@ func TestExecJob(t *testing.T) {
 	target3.MustExec(sql, args...)
 
 	config := Config{
-		Jobs: []JobConfig{
-			{
-				Name:        "users",
+		Jobs: map[string]JobConfig{
+			"users": {
 				PrimaryKeys: []string{"id"},
 				Columns:     []string{"id", "name", "age"},
 				Source:      sourceConfig,
@@ -194,9 +193,8 @@ func TestExecJob_multiple_primary_key(t *testing.T) {
 	primaryKeys := []string{"age", "name"}
 
 	config := Config{
-		Jobs: []JobConfig{
-			{
-				Name:        "users",
+		Jobs: map[string]JobConfig{
+			"users": {
 				PrimaryKeys: primaryKeys,
 				Columns:     []string{"name", "age", "favoriteColor"},
 				Source:      sourceConfig,
@@ -356,9 +354,8 @@ func TestExecJob_mysql(t *testing.T) {
 	target3.MustExec(sql, args...)
 
 	config := Config{
-		Jobs: []JobConfig{
-			{
-				Name:        "users",
+		Jobs: map[string]JobConfig{
+			"users": {
 				PrimaryKeys: []string{"id"},
 				Columns:     []string{"id", "name", "age", "created_at"},
 				Source:      sourceConfig,
@@ -473,9 +470,8 @@ func TestExecJob_mysql_multiple_primary_key(t *testing.T) {
 	primaryKeys := []string{"age", "name"}
 
 	config := Config{
-		Jobs: []JobConfig{
-			{
-				Name:        "users",
+		Jobs: map[string]JobConfig{
+			"users": {
 				PrimaryKeys: primaryKeys,
 				Columns:     []string{"name", "age", "favoriteColor"},
 				Source:      sourceConfig,
