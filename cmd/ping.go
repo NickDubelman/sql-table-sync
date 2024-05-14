@@ -25,12 +25,14 @@ var pingCmd = &cobra.Command{
 				return
 			}
 
-			for i, job := range config.Jobs {
-				if i != 0 {
+			first := true
+			for jobName := range config.Jobs {
+				if !first {
+					first = false
 					fmt.Println() // Add a newline between job results
 				}
 
-				printPingOutput(job.Name, allResults[i].Tables, nil)
+				printPingOutput(jobName, allResults[jobName], nil)
 			}
 		} else {
 			for i, jobName := range args {
@@ -45,7 +47,7 @@ var pingCmd = &cobra.Command{
 	},
 }
 
-func printPingOutput(jobName string, results []sync.TablePingResult, err error) {
+func printPingOutput(jobName string, results []sync.PingResult, err error) {
 	if err != nil {
 		fmt.Println(err)
 		return

@@ -17,9 +17,8 @@ func TestPingAllJobs(t *testing.T) {
 	target2DSN := "file:test_ping_target2.db?mode=memory&cache=shared"
 
 	config := Config{
-		Jobs: []JobConfig{
-			{
-				Name:    "users",
+		Jobs: map[string]JobConfig{
+			"users": {
 				Columns: []string{"id", "name", "email"},
 				Source: TableConfig{
 					Driver: "sqlite3",
@@ -39,8 +38,8 @@ func TestPingAllJobs(t *testing.T) {
 					},
 				},
 			},
-			{
-				Name:    "pets",
+
+			"pets": {
 				Columns: []string{"id", "name", "user_id"},
 				Source: TableConfig{
 					Driver: "sqlite3",
@@ -58,23 +57,23 @@ func TestPingAllJobs(t *testing.T) {
 		},
 	}
 
-	results, err := config.PingAllJobs(30 * time.Second)
+	allResults, err := config.PingAllJobs(30 * time.Second)
 	require.NoError(t, err)
-	require.Len(t, results, 2)
+	require.Len(t, allResults, 2)
 
-	result := results[0]
-	job := config.Jobs[0]
-	assert.Equal(t, "users", job.Name)
-	assert.Len(t, result.Tables, 3)
+	usersJobName := "users"
+	require.Contains(t, allResults, usersJobName)
+	usersResults := allResults[usersJobName]
+	assert.Len(t, usersResults, 3)
 
-	result = results[1]
-	job = config.Jobs[1]
-	assert.Equal(t, "pets", job.Name)
-	assert.Len(t, result.Tables, 2)
+	petsJobName := "pets"
+	require.Contains(t, allResults, petsJobName)
+	petsResults := allResults[petsJobName]
+	assert.Len(t, petsResults, 2)
 
 	// We haven't yet created the tables, so we expect them all to error
-	for _, result := range results {
-		for i, table := range result.Tables {
+	for _, results := range allResults {
+		for i, table := range results {
 			if i == 0 {
 				// First table should be the source
 				assert.Equal(t, "source", table.Label)
@@ -114,22 +113,17 @@ func TestPingAllJobs(t *testing.T) {
 		`)
 	}
 
-	results, err = config.PingAllJobs(30 * time.Second)
+	allResults, err = config.PingAllJobs(30 * time.Second)
 	require.NoError(t, err)
-	require.Len(t, results, 2)
+	require.Len(t, allResults, 2)
 
-	result = results[0]
-	job = config.Jobs[0]
-	assert.Equal(t, "users", job.Name)
-	assert.Len(t, result.Tables, 3)
+	usersResults = allResults[usersJobName]
+	petsResults = allResults[petsJobName]
+	assert.Len(t, usersResults, 3)
+	assert.Len(t, petsResults, 2)
 
-	result = results[1]
-	job = config.Jobs[1]
-	assert.Equal(t, "pets", job.Name)
-	assert.Len(t, result.Tables, 2)
-
-	for _, result := range results {
-		for _, table := range result.Tables {
+	for _, results := range allResults {
+		for _, table := range results {
 			assert.NoError(t, table.Error)
 		}
 	}
@@ -143,9 +137,8 @@ func TestPingAllJobs_mysql(t *testing.T) {
 	dsn := fmt.Sprintf("root@tcp(localhost:%s)/%s", dbPortStr, dbName)
 
 	config := Config{
-		Jobs: []JobConfig{
-			{
-				Name:        "users",
+		Jobs: map[string]JobConfig{
+			"users": {
 				PrimaryKeys: []string{"id"},
 				Columns:     []string{"id", "name", "email"},
 				Source: TableConfig{
@@ -166,8 +159,8 @@ func TestPingAllJobs_mysql(t *testing.T) {
 					},
 				},
 			},
-			{
-				Name:    "pets",
+
+			"pets": {
 				Columns: []string{"id", "name", "user_id"},
 				Source: TableConfig{
 					Driver: "mysql",
@@ -185,23 +178,25 @@ func TestPingAllJobs_mysql(t *testing.T) {
 		},
 	}
 
-	results, err := config.PingAllJobs(30 * time.Second)
+	allResults, err := config.PingAllJobs(30 * time.Second)
 	require.NoError(t, err)
-	require.Len(t, results, 2)
+	require.Len(t, allResults, 2)
 
-	result := results[0]
-	job := config.Jobs[0]
-	assert.Equal(t, "users", job.Name)
-	assert.Len(t, result.Tables, 3)
+	usersJobName := "users"
+	require.Contains(t, allResults, usersJobName)
+	usersJob := config.Jobs[usersJobName]
+	usersResults := allResults[usersJobName]
+	assert.Len(t, usersResults, 3)
 
-	result = results[1]
-	job = config.Jobs[1]
-	assert.Equal(t, "pets", job.Name)
-	assert.Len(t, result.Tables, 2)
+	petsJobName := "pets"
+	require.Contains(t, allResults, petsJobName)
+	petsJob := config.Jobs[petsJobName]
+	petsResults := allResults[petsJobName]
+	assert.Len(t, petsResults, 2)
 
 	// We haven't yet created the tables, so we expect them all to error
-	for _, result := range results {
-		for i, table := range result.Tables {
+	for _, results := range allResults {
+		for i, table := range results {
 			if i == 0 {
 				// First table should be the source
 				assert.Equal(t, "source", table.Label)
@@ -239,32 +234,28 @@ func TestPingAllJobs_mysql(t *testing.T) {
 		`, tableName))
 	}
 
-	createUsersTable(config.Jobs[0].Source.Table)
-	for _, target := range config.Jobs[0].Targets {
+	createUsersTable(usersJob.Source.Table)
+	for _, target := range usersJob.Targets {
 		createUsersTable(target.Table)
 	}
 
-	createPetsTable(config.Jobs[1].Source.Table)
-	for _, target := range config.Jobs[1].Targets {
+	createPetsTable(petsJob.Source.Table)
+	for _, target := range petsJob.Targets {
 		createPetsTable(target.Table)
 	}
 
-	results, err = config.PingAllJobs(30 * time.Second)
+	allResults, err = config.PingAllJobs(30 * time.Second)
 	require.NoError(t, err)
-	require.Len(t, results, 2)
+	require.Len(t, allResults, 2)
 
-	result = results[0]
-	job = config.Jobs[0]
-	assert.Equal(t, "users", job.Name)
-	assert.Len(t, result.Tables, 3)
+	usersResults = allResults[usersJobName]
+	assert.Len(t, usersResults, 3)
 
-	result = results[1]
-	job = config.Jobs[1]
-	assert.Equal(t, "pets", job.Name)
-	assert.Len(t, result.Tables, 2)
+	petsResults = allResults[petsJobName]
+	assert.Len(t, petsResults, 2)
 
-	for _, result := range results {
-		for _, table := range result.Tables {
+	for _, results := range allResults {
+		for _, table := range results {
 			assert.NoError(t, table.Error)
 		}
 	}

@@ -9,13 +9,8 @@ import (
 	sq "github.com/Masterminds/squirrel"
 )
 
-// PingResult contains the results of pinging all of the referenced tables for a single job
+// PingResult contains the results of pinging a single table
 type PingResult struct {
-	Tables []TablePingResult
-}
-
-// TablePingResult contains the results of pinging a single table
-type TablePingResult struct {
 	Label  string
 	Config TableConfig
 	Error  error
@@ -26,22 +21,14 @@ type TablePingResult struct {
 //   - has the correct credentials
 //   - exists
 //   - has the expected columns
-func (c Config) PingJob(jobName string, timeout time.Duration) ([]TablePingResult, error) {
+func (c Config) PingJob(jobName string, timeout time.Duration) ([]PingResult, error) {
 	// Find the job with the given name
-	var job JobConfig
-	for _, j := range c.Jobs {
-		if j.Name == jobName {
-			job = j
-			break
-		}
-	}
-
-	// If no matching job was found, return an error
-	if job.Name == "" {
+	job, ok := c.Jobs[jobName]
+	if !ok {
 		return nil, fmt.Errorf("job '%s' not found in config", jobName)
 	}
 
-	var results []TablePingResult
+	var results []PingResult
 
 	// Ping the source table
 	sourceLabel := job.Source.Label
@@ -49,7 +36,7 @@ func (c Config) PingJob(jobName string, timeout time.Duration) ([]TablePingResul
 		sourceLabel = "source"
 	}
 
-	results = append(results, TablePingResult{
+	results = append(results, PingResult{
 		Label:  sourceLabel,
 		Config: job.Source,
 		Error:  pingWithTimeout(timeout, job.Source, job.Columns),
@@ -57,7 +44,7 @@ func (c Config) PingJob(jobName string, timeout time.Duration) ([]TablePingResul
 
 	// Ping the target tables (in parallel)
 	var wg sync.WaitGroup
-	resultChan := make(chan TablePingResult, len(job.Targets))
+	resultChan := make(chan PingResult, len(job.Targets))
 
 	for j, target := range job.Targets {
 		wg.Add(1)
@@ -69,7 +56,7 @@ func (c Config) PingJob(jobName string, timeout time.Duration) ([]TablePingResul
 				label = fmt.Sprintf("target %d", j)
 			}
 
-			resultChan <- TablePingResult{
+			resultChan <- PingResult{
 				Label:  label,
 				Config: target,
 				Error:  pingWithTimeout(timeout, target, job.Columns),
@@ -93,19 +80,19 @@ func (c Config) PingJob(jobName string, timeout time.Duration) ([]TablePingResul
 //   - has the correct credentials
 //   - exists
 //   - has the expected columns
-func (c Config) PingAllJobs(timeout time.Duration) ([]PingResult, error) {
+func (c Config) PingAllJobs(timeout time.Duration) (map[string][]PingResult, error) {
 	// Iterate over all jobs and "ping" the source and targets
-	results := make([]PingResult, len(c.Jobs))
+	results := make(map[string][]PingResult, len(c.Jobs))
 
-	for i, job := range c.Jobs {
-		jobResults, err := c.PingJob(job.Name, timeout)
+	for jobName := range c.Jobs {
+		jobResults, err := c.PingJob(jobName, timeout)
 		if err != nil {
 			// This can't actually happen because the only way for PingJob to error is if the job
 			// doesn't exist (but we are iterating on the jobs)
 			return nil, err
 		}
 
-		results[i].Tables = jobResults
+		results[jobName] = jobResults
 	}
 
 	return results, nil

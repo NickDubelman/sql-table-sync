@@ -13,7 +13,7 @@ func main() {
         driver: mysql
 
         jobs:
-          - name: users
+          users:
             columns: [id, name, age]
             source:
               table: users
@@ -40,9 +40,15 @@ func main() {
 
     // Exec all jobs
     results, errs := cfg.ExecAllJobs()
+    userResult := results["users"]
+    userErr := errs["users"]
 
-    // "Ping" all jobs to make sure sources/targets are reachable and tables exist
-    pingResults, err := cfg.Ping(30 * time.Second)
+    // "Ping" a single jobs by name, to make sure sources/targets are reachable and tables exist
+    results, err := config.PingJob(jobName, 30*time.Second)
+
+    // "Ping" all jobs
+    allResults, err := config.PingAllJobs(30 * time.Second)
+    userPingResult := allResults["users"]
 }
 ```
 

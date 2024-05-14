@@ -11,16 +11,8 @@ type ExecJobResult struct {
 // ExecJob executes a single job in the sync config
 func (c Config) ExecJob(jobName string) (ExecJobResult, error) {
 	// Find the job with the given name
-	var job JobConfig
-	for _, j := range c.Jobs {
-		if j.Name == jobName {
-			job = j
-			break
-		}
-	}
-
-	// If no matching job was found, return an error
-	if job.Name == "" {
+	job, ok := c.Jobs[jobName]
+	if !ok {
 		return ExecJobResult{}, fmt.Errorf("job '%s' not found in config", jobName)
 	}
 
@@ -29,14 +21,14 @@ func (c Config) ExecJob(jobName string) (ExecJobResult, error) {
 }
 
 // ExecAllJobs executes all jobs in the sync config
-func (c Config) ExecAllJobs() ([]ExecJobResult, []error) {
-	results := make([]ExecJobResult, len(c.Jobs))
-	errors := make([]error, len(c.Jobs))
+func (c Config) ExecAllJobs() (map[string]ExecJobResult, map[string]error) {
+	results := make(map[string]ExecJobResult, len(c.Jobs))
+	errors := make(map[string]error, len(c.Jobs))
 
-	for i, job := range c.Jobs {
-		result, err := c.ExecJob(job.Name)
-		results[i] = result
-		errors[i] = err
+	for jobName := range c.Jobs {
+		result, err := c.ExecJob(jobName)
+		results[jobName] = result
+		errors[jobName] = err
 	}
 
 	return results, errors
