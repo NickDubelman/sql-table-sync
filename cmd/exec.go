@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	sync "github.com/NickDubelman/sql-table-sync"
 )
 
 func init() {
@@ -17,39 +19,62 @@ var execCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			results, errs := config.ExecAllJobs()
-			for _, err := range errs {
-				if err != nil {
-					fmt.Println(err)
-				}
-			}
 
-			for i, result := range results {
-				jobName := config.Jobs[i].Name
-				sourceChecksum := result.Checksum
-				for _, result := range result.Results {
-					if result.Error != nil {
-						fmt.Println(jobName, result.Target, result.Error)
-					} else {
-						fmt.Println(jobName, result.Target, sourceChecksum, result.TargetChecksum)
-					}
+			for i, job := range config.Jobs {
+				if i != 0 {
+					fmt.Println() // Add a newline between job results
 				}
+
+				printExecOutput(job.Name, results[i], errs[i])
 			}
 		} else {
-			for _, jobName := range args {
-				result, err := config.ExecJob(jobName)
-				if err != nil {
-					fmt.Println(err)
+			for i, jobName := range args {
+				if i != 0 {
+					fmt.Println() // Add a newline between job results
 				}
 
-				sourceChecksum := result.Checksum
-				for _, r := range result.Results {
-					if r.Error != nil {
-						fmt.Println(jobName, r.Target, r.Error)
-					} else {
-						fmt.Println(jobName, r.Target, sourceChecksum, r.TargetChecksum)
-					}
-				}
+				result, err := config.ExecJob(jobName)
+				printExecOutput(jobName, result, err)
 			}
 		}
 	},
+}
+
+func printExecOutput(jobName string, result sync.ExecJobResult, err error) {
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println(jobName, "results:")
+	fmt.Println("  - source checksum:", result.Checksum)
+
+	var numOk, numChanged int
+	var targetErrs []string
+
+	for _, r := range result.Results {
+		if r.Error != nil {
+			errStr := fmt.Sprintf("%s: %s", r.Target.Label, r.Error)
+			targetErrs = append(targetErrs, errStr)
+		} else {
+			numOk++
+
+			if r.Synced {
+				numChanged++
+			}
+		}
+	}
+
+	resultStr := fmt.Sprintf("%d ok, %d changed", numOk, numChanged)
+	if len(targetErrs) > 0 {
+		resultStr += fmt.Sprintf(", %d errored", len(targetErrs))
+	}
+
+	fmt.Println("  - targets:", resultStr)
+
+	if len(targetErrs) > 0 {
+		for _, err := range targetErrs {
+			fmt.Println("    -", err)
+		}
+	}
 }
