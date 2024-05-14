@@ -3,45 +3,18 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
-
-	sync "github.com/NickDubelman/sql-table-sync"
 )
 
 func main() {
-	setup()
-
-	cfg, err := sync.LoadConfig("sample_config.yaml")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	pingResults, err := cfg.PingAllJobs(30 * time.Second)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	for _, r := range pingResults {
-		for _, result := range r.Tables {
-			if result.Error != nil {
-				fmt.Println(r.Job.Name, result.Label, result.Error)
-			}
-		}
-	}
-
-	_, errs := cfg.ExecAllJobs()
-	for _, err := range errs {
-		if err != nil {
-			log.Println(err)
-		}
-	}
+	executeRootCmd()
 }
 
-func setup() {
+// FIXME: remove this
+func tmp_seed() {
 	createTableStmt := func(name string) string {
 		return fmt.Sprintf(
 			`CREATE TABLE IF NOT EXISTS %s (
