@@ -76,7 +76,8 @@ func TestLoadConfig(t *testing.T) {
 
 	t.Run("default config values", func(t *testing.T) {
 		cfg, err := loadConfig(`
-            driver: sqlite3
+            defaults:
+              driver: sqlite3
 
             jobs:
               users:
@@ -110,9 +111,9 @@ func TestLoadConfig(t *testing.T) {
 
 	t.Run("load config with top-level credentials", func(t *testing.T) {
 		cfg, err := loadConfig(`
-            driver: sqlite3
-
-            credentialDefaults:
+            defaults:
+              driver: sqlite3
+              hosts:
                 host1:
                     driver: mysql
                     user: user1

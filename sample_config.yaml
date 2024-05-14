@@ -1,8 +1,8 @@
-driver: mysql
-
-credentialDefaults:
-  localhost:
-    user: root
+defaults:
+  driver: mysql
+  hosts:
+    localhost:
+      user: root
 
 jobs:
   users:

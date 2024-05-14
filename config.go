@@ -9,9 +9,13 @@ import (
 
 // Config contains the sync jobs and any other configuration for the sync process
 type Config struct {
-	Driver             string
-	CredentialDefaults map[string]CredentialsConfig `yaml:"credentialDefaults"`
-	Jobs               map[string]JobConfig
+	Defaults ConfigDefaults
+	Jobs     map[string]JobConfig
+}
+
+type ConfigDefaults struct {
+	Driver string
+	Hosts  map[string]CredentialsConfig
 }
 
 // JobConfig contains the configuration for a single sync job
@@ -92,8 +96,6 @@ func loadConfig(fileContents string) (Config, error) {
 		return Config{}, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	defaultDriver := config.Driver
-
 	// Impose some default values
 	for jobName := range config.Jobs {
 		job := config.Jobs[jobName]
@@ -109,18 +111,10 @@ func loadConfig(fileContents string) (Config, error) {
 		}
 
 		// If host is given, check to see if there is an entry in the credential map
-		job.Source = imposeDefaultCredentials(
-			job.Source,
-			config.CredentialDefaults,
-			defaultDriver,
-		)
+		job.Source = imposeDefaultCredentials(job.Source, config.Defaults)
 
 		for j := range job.Targets {
-			job.Targets[j] = imposeDefaultCredentials(
-				job.Targets[j],
-				config.CredentialDefaults,
-				defaultDriver,
-			)
+			job.Targets[j] = imposeDefaultCredentials(job.Targets[j], config.Defaults)
 		}
 
 		config.Jobs[jobName] = job // Update the map
@@ -214,46 +208,45 @@ func (cfg TableConfig) validate() error {
 
 func imposeDefaultCredentials(
 	table TableConfig,
-	credentialMap map[string]CredentialsConfig,
-	globalDriver string,
+	defaults ConfigDefaults,
 ) TableConfig {
-	var defaultCredentials CredentialsConfig
+	var hostDefaults CredentialsConfig
 	if table.Host != "" {
-		defaultCredentials = credentialMap[table.Host]
+		hostDefaults = defaults.Hosts[table.Host]
 	}
 
 	// If Driver is not empty, set it to the default driver
 	if table.Driver == "" {
-		if defaultCredentials.Driver != "" {
-			table.Driver = defaultCredentials.Driver // Default from the credentials for the host
+		if hostDefaults.Driver != "" {
+			table.Driver = hostDefaults.Driver // Default from the credentials for the host
 		} else {
-			table.Driver = globalDriver // Global default driver
+			table.Driver = defaults.Driver // Global default driver
 		}
 	}
 
 	if table.DSN == "" {
 		// If DSN is not provided, default to the DSN from the credential map
-		table.DSN = defaultCredentials.DSN
+		table.DSN = hostDefaults.DSN
 	}
 
 	if table.User == "" {
 		// If User is not provided, default to the User from the credential map
-		table.User = defaultCredentials.User
+		table.User = hostDefaults.User
 	}
 
 	if table.Password == "" {
 		// If Password is not provided, default to the Password from the credential map
-		table.Password = defaultCredentials.Password
+		table.Password = hostDefaults.Password
 	}
 
 	if table.Port == 0 {
 		// If Port is not provided, default to the Port from the credential map
-		table.Port = defaultCredentials.Port
+		table.Port = hostDefaults.Port
 	}
 
 	if table.DB == "" {
 		// If DB is not provided, default to the DB from the credential map
-		table.DB = defaultCredentials.DB
+		table.DB = hostDefaults.DB
 	}
 
 	return table
