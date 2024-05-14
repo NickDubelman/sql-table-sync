@@ -46,7 +46,7 @@ func printExecOutput(jobName string, result sync.ExecJobResult, err error) {
 		return
 	}
 
-	fmt.Println(jobName, "results:")
+	fmt.Println(jobName + ":")
 	fmt.Println("  - source checksum:", result.Checksum)
 
 	var numOk, numChanged int

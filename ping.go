@@ -11,7 +11,6 @@ import (
 
 // PingResult contains the results of pinging all of the referenced tables for a single job
 type PingResult struct {
-	Job    JobConfig
 	Tables []TablePingResult
 }
 
@@ -99,8 +98,6 @@ func (c Config) PingAllJobs(timeout time.Duration) ([]PingResult, error) {
 	results := make([]PingResult, len(c.Jobs))
 
 	for i, job := range c.Jobs {
-		results[i].Job = job
-
 		jobResults, err := c.PingJob(job.Name, timeout)
 		if err != nil {
 			// This can't actually happen because the only way for PingJob to error is if the job

@@ -63,11 +63,13 @@ func TestPingAllJobs(t *testing.T) {
 	require.Len(t, results, 2)
 
 	result := results[0]
-	assert.Equal(t, "users", result.Job.Name)
+	job := config.Jobs[0]
+	assert.Equal(t, "users", job.Name)
 	assert.Len(t, result.Tables, 3)
 
 	result = results[1]
-	assert.Equal(t, "pets", result.Job.Name)
+	job = config.Jobs[1]
+	assert.Equal(t, "pets", job.Name)
 	assert.Len(t, result.Tables, 2)
 
 	// We haven't yet created the tables, so we expect them all to error
@@ -117,11 +119,13 @@ func TestPingAllJobs(t *testing.T) {
 	require.Len(t, results, 2)
 
 	result = results[0]
-	assert.Equal(t, "users", result.Job.Name)
+	job = config.Jobs[0]
+	assert.Equal(t, "users", job.Name)
 	assert.Len(t, result.Tables, 3)
 
 	result = results[1]
-	assert.Equal(t, "pets", result.Job.Name)
+	job = config.Jobs[1]
+	assert.Equal(t, "pets", job.Name)
 	assert.Len(t, result.Tables, 2)
 
 	for _, result := range results {
@@ -186,11 +190,13 @@ func TestPingAllJobs_mysql(t *testing.T) {
 	require.Len(t, results, 2)
 
 	result := results[0]
-	assert.Equal(t, "users", result.Job.Name)
+	job := config.Jobs[0]
+	assert.Equal(t, "users", job.Name)
 	assert.Len(t, result.Tables, 3)
 
 	result = results[1]
-	assert.Equal(t, "pets", result.Job.Name)
+	job = config.Jobs[1]
+	assert.Equal(t, "pets", job.Name)
 	assert.Len(t, result.Tables, 2)
 
 	// We haven't yet created the tables, so we expect them all to error
@@ -248,11 +254,13 @@ func TestPingAllJobs_mysql(t *testing.T) {
 	require.Len(t, results, 2)
 
 	result = results[0]
-	assert.Equal(t, "users", result.Job.Name)
+	job = config.Jobs[0]
+	assert.Equal(t, "users", job.Name)
 	assert.Len(t, result.Tables, 3)
 
 	result = results[1]
-	assert.Equal(t, "pets", result.Job.Name)
+	job = config.Jobs[1]
+	assert.Equal(t, "pets", job.Name)
 	assert.Len(t, result.Tables, 2)
 
 	for _, result := range results {
