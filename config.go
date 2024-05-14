@@ -216,43 +216,56 @@ func imposeDefaultCredentials(
 		hostDefaults = defaults.Hosts[table.Host]
 	}
 
+	// If Driver is empty, set it to either the global default or the host's defaults
+	if table.Driver == "" {
+		if hostDefaults.Driver != "" {
+			table.Driver = hostDefaults.Driver // Host default
+		} else {
+			table.Driver = defaults.Driver // Global default
+		}
+	}
+
+	// If DSN is empty, set it to the host's default
+	if table.DSN == "" {
+		table.DSN = hostDefaults.DSN
+	}
+
+	// If User is empty, set it to the host's default
+	if table.User == "" {
+		table.User = hostDefaults.User
+	}
+
+	// If Password is empty, set it to the host's default
+	if table.Password == "" {
+		table.Password = hostDefaults.Password
+	}
+
+	// If Port is empty, set it to the host's default
+	if table.Port == 0 {
+		table.Port = hostDefaults.Port
+	}
+
+	// If DB is empty, set it to the host's default
+	if table.DB == "" {
+		table.DB = hostDefaults.DB
+	}
+
 	// If Label is empty, set it to the host's default
 	if table.Label == "" {
 		table.Label = hostDefaults.Label
 	}
 
-	// If Driver is empty, set it to either the global default or the host's defaults
-	if table.Driver == "" {
-		if hostDefaults.Driver != "" {
-			table.Driver = hostDefaults.Driver // Default from the credentials for the host
-		} else {
-			table.Driver = defaults.Driver // Global default driver
+	// If Label is still empty, default to DSN or Host:Port
+	if table.Label == "" {
+		if table.DSN != "" {
+			table.Label = table.DSN
+		} else if table.Host != "" && table.Port != 0 {
+			table.Label = fmt.Sprintf("%s:%d", table.Host, table.Port)
+		} else if table.Host != "" {
+			table.Label = table.Host
+		} else if table.Port != 0 {
+			table.Label = fmt.Sprintf(":%d", table.Port)
 		}
-	}
-
-	if table.DSN == "" {
-		// If DSN is empty, set it to the host's default
-		table.DSN = hostDefaults.DSN
-	}
-
-	if table.User == "" {
-		// If User is empty, set it to the host's default
-		table.User = hostDefaults.User
-	}
-
-	if table.Password == "" {
-		// If Password is empty, set it to the host's default
-		table.Password = hostDefaults.Password
-	}
-
-	if table.Port == 0 {
-		// If Port is empty, set it to the host's default
-		table.Port = hostDefaults.Port
-	}
-
-	if table.DB == "" {
-		// If DB is empty, set it to the host's default
-		table.DB = hostDefaults.DB
 	}
 
 	return table

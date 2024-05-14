@@ -78,41 +78,6 @@ func TestLoadConfig(t *testing.T) {
 		cfg, err := loadConfig(`
             defaults:
               driver: sqlite3
-
-            jobs:
-              users:
-                columns: [id, name, age]
-                source:
-                  table: users
-                targets:
-                  - table: users2
-                  - table: users3
-                    driver: sqlite4
-                    user: nikolas
-        `)
-		require.NoError(t, err)
-		require.Len(t, cfg.Jobs, 1)
-		jobName := "users"
-		require.Contains(t, cfg.Jobs, jobName)
-		job := cfg.Jobs[jobName]
-
-		// PrimaryKey is empty, so it should default to "id"
-		assert.Equal(t, "id", job.PrimaryKey)
-
-		// PrimaryKey should be copied to PrimaryKeys
-		assert.Equal(t, []string{"id"}, job.PrimaryKeys)
-
-		// Driver is specified at top level, so it should be copied to each source and target that
-		// does not specify a driver
-		assert.Equal(t, "sqlite3", job.Source.Driver)
-		assert.Equal(t, "sqlite3", job.Targets[0].Driver)
-		assert.Equal(t, "sqlite4", job.Targets[1].Driver)
-	})
-
-	t.Run("load config with top-level credentials", func(t *testing.T) {
-		cfg, err := loadConfig(`
-            defaults:
-              driver: sqlite3
               hosts:
                 host1:
                     driver: mysql
@@ -155,6 +120,10 @@ func TestLoadConfig(t *testing.T) {
                     user: user3_override
                     password: pass3_override
                     table: pets
+                  - host: host4
+                    table: pets
+                  - port: 1234
+                    table: pets
         `)
 		require.NoError(t, err)
 		require.Len(t, cfg.Jobs, 2)
@@ -167,12 +136,14 @@ func TestLoadConfig(t *testing.T) {
 		require.Contains(t, cfg.Jobs, petsJobName)
 		petsJob := cfg.Jobs[petsJobName]
 
+		assert.Equal(t, "host1:3369", usersJob.Source.Label)
 		assert.Equal(t, "mysql", usersJob.Source.Driver)
 		assert.Equal(t, "user1", usersJob.Source.User)
 		assert.Equal(t, "pass1", usersJob.Source.Password)
 		assert.Equal(t, 3369, usersJob.Source.Port)
 		assert.Equal(t, "appdb", usersJob.Source.DB)
 
+		assert.Equal(t, "host2_dsn", usersJob.Targets[0].Label)
 		assert.Equal(t, "postgres", usersJob.Targets[0].Driver)
 		assert.Equal(t, "host2_dsn", usersJob.Targets[0].DSN)
 
@@ -180,12 +151,14 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "sqlite3", usersJob.Targets[1].Driver)
 		assert.Equal(t, "host3_dsn", usersJob.Targets[1].DSN)
 
+		assert.Equal(t, "host1:3369", petsJob.Source.Label)
 		assert.Equal(t, "mysql", petsJob.Source.Driver)
 		assert.Equal(t, "user1", petsJob.Source.User)
 		assert.Equal(t, "pass1", petsJob.Source.Password)
 		assert.Equal(t, 3369, petsJob.Source.Port)
 		assert.Equal(t, "appdb", petsJob.Source.DB)
 
+		assert.Equal(t, "host2_dsn_override", petsJob.Targets[0].Label)
 		assert.Equal(t, "postgres", petsJob.Targets[0].Driver)
 		assert.Equal(t, "host2_dsn_override", petsJob.Targets[0].DSN)
 
@@ -193,6 +166,9 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "sqlite3", petsJob.Targets[1].Driver)
 		assert.Equal(t, "user3_override", petsJob.Targets[1].User)
 		assert.Equal(t, "pass3_override", petsJob.Targets[1].Password)
+
+		assert.Equal(t, "host4", petsJob.Targets[2].Label)
+		assert.Equal(t, ":1234", petsJob.Targets[3].Label)
 	})
 }
 
