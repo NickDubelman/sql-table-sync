@@ -1,16 +1,23 @@
 driver: mysql
 
+credentialDefaults:
+  localhost:
+    user: root
+
 jobs:
   - name: users
     columns: [id, name, age]
     source:
       table: users_source
+      host: localhost
       db: app
       port: 3420
     targets:
       - table: users_target1
+        host: localhost
         db: app
         port: 3420
       - table: users_target2
+        host: localhost
         db: app
         port: 3420
