@@ -5,7 +5,7 @@ defaults:
   # These are host-specific defaults
   hosts:
     localhost:
-      label: "my laptop" # You can give an optional label to a host for better logging
+      label: 'my laptop' # You can give an optional label to a host for better logging
       user: root
       port: 3420
       db: app
@@ -29,17 +29,16 @@ jobs:
     source:
       host: localhost
       table: pets_source
-    
+
     targets:
       - host: localhost
         table: pets_target1
         # A host can override its defaults
-        label: "Target 1"
+        label: 'Target 1'
         user: root
         port: 3420
         db: app
 
       # Can use a DSN string instead of individual fields
-      - dsn: root@tcp(localhost:3420)/app 
+      - dsn: root@tcp(localhost:3420)/app
         table: pets_target2
-        
