@@ -313,6 +313,16 @@ func TestValidateJobConfig(t *testing.T) {
 			expectedErr: "source: table name is empty",
 		},
 		{
+			description: "missing source table (with label)",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Source.Table = ""
+				cfg.Source.Label = "foobarbaz"
+				return cfg
+			},
+			expectedErr: "foobarbaz: table name is empty",
+		},
+		{
 			description: "missing source driver",
 			job: func() JobConfig {
 				cfg := validJob()
@@ -320,6 +330,16 @@ func TestValidateJobConfig(t *testing.T) {
 				return cfg
 			},
 			expectedErr: "source: table does not specify a driver",
+		},
+		{
+			description: "missing source driver (with label)",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Source.Driver = ""
+				cfg.Source.Label = "foobarbaz"
+				return cfg
+			},
+			expectedErr: "foobarbaz: table does not specify a driver",
 		},
 		{
 			description: "missing targets",
@@ -340,6 +360,16 @@ func TestValidateJobConfig(t *testing.T) {
 			expectedErr: "target[0]: table name is empty",
 		},
 		{
+			description: "missing target table (with label)",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Targets[0].Table = ""
+				cfg.Targets[0].Label = "foobarbaz"
+				return cfg
+			},
+			expectedErr: "foobarbaz: table name is empty",
+		},
+		{
 			description: "missing target driver",
 			job: func() JobConfig {
 				cfg := validJob()
@@ -347,6 +377,16 @@ func TestValidateJobConfig(t *testing.T) {
 				return cfg
 			},
 			expectedErr: "target[0]: table does not specify a driver",
+		},
+		{
+			description: "missing target driver (with label)",
+			job: func() JobConfig {
+				cfg := validJob()
+				cfg.Targets[0].Driver = ""
+				cfg.Targets[0].Label = "foobarbaz"
+				return cfg
+			},
+			expectedErr: "foobarbaz: table does not specify a driver",
 		},
 	}
 

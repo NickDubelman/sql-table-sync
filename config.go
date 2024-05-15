@@ -187,7 +187,11 @@ func (cfg JobConfig) validate() error {
 
 	// Make sure every job has a non-empty source table
 	if err := cfg.Source.validate(); err != nil {
-		return fmt.Errorf("source: %w", err)
+		label := cfg.Source.Label
+		if label == "" {
+			label = "source"
+		}
+		return fmt.Errorf("%s: %w", label, err)
 	}
 
 	// Make sure every job has at least one target
@@ -196,8 +200,13 @@ func (cfg JobConfig) validate() error {
 	}
 
 	for i, target := range cfg.Targets {
+		label := target.Label
+		if label == "" {
+			label = fmt.Sprintf("target[%d]", i)
+		}
+
 		if err := target.validate(); err != nil {
-			return fmt.Errorf("target[%d]: %w", i, err)
+			return fmt.Errorf("%s: %w", label, err)
 		}
 	}
 
