@@ -1,23 +1,45 @@
+# To avoid repetition, you can define defaults for all jobs in the config file.
 defaults:
-  driver: mysql
+  driver: mysql # This is a global default (all jobs)
+
+  # These are host-specific defaults
   hosts:
     localhost:
+      label: "my laptop" # You can give an optional label to a host for better logging
       user: root
+      port: 3420
+      db: app
 
 jobs:
+  # Jobs are uniquely identified by a name (below, "users" and "pets" are the jobs)
   users:
     columns: [id, name, age]
     source:
-      table: users_source
       host: localhost
-      db: app
-      port: 3420
+      table: users_source
     targets:
-      - table: users_target1
-        host: localhost
-        db: app
+      - host: localhost
+        table: users_target1
+      - host: localhost
+        table: users_target2
+
+  pets:
+    columns: [id, name, species, user_id]
+
+    source:
+      host: localhost
+      table: pets_source
+    
+    targets:
+      - host: localhost
+        table: pets_target1
+        # A host can override its defaults
+        label: "Target 1"
+        user: root
         port: 3420
-      - table: users_target2
-        host: localhost
         db: app
-        port: 3420
+
+      # Can use a DSN string instead of individual fields
+      - dsn: root@tcp(localhost:3420)/app 
+        table: pets_target2
+        

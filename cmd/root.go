@@ -27,6 +27,10 @@ func init() {
 	)
 }
 
+func main() {
+	executeRootCmd()
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "sql-table-sync",
 	Short: "Sync SQL tables between databases",
