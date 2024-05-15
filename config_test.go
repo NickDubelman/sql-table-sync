@@ -320,7 +320,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.Source.Label = "foobarbaz"
 				return cfg
 			},
-			expectedErr: "foobarbaz: table name is empty",
+			expectedErr: `"foobarbaz": table name is empty`,
 		},
 		{
 			description: "missing source driver",
@@ -339,7 +339,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.Source.Label = "foobarbaz"
 				return cfg
 			},
-			expectedErr: "foobarbaz: table does not specify a driver",
+			expectedErr: `"foobarbaz": table does not specify a driver`,
 		},
 		{
 			description: "missing targets",
@@ -367,7 +367,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.Targets[0].Label = "foobarbaz"
 				return cfg
 			},
-			expectedErr: "foobarbaz: table name is empty",
+			expectedErr: `"foobarbaz": table name is empty`,
 		},
 		{
 			description: "missing target driver",
@@ -386,7 +386,7 @@ func TestValidateJobConfig(t *testing.T) {
 				cfg.Targets[0].Label = "foobarbaz"
 				return cfg
 			},
-			expectedErr: "foobarbaz: table does not specify a driver",
+			expectedErr: `"foobarbaz": table does not specify a driver`,
 		},
 	}
 
