@@ -9,13 +9,19 @@ import (
 
 // Config contains the sync jobs and any other configuration for the sync process
 type Config struct {
+	// Defaults contains the user-specified defaults for the config
 	Defaults ConfigDefaults
-	Jobs     map[string]JobConfig
+
+	// Jobs maps a set of job names to their definitions
+	Jobs map[string]JobConfig
 }
 
 type ConfigDefaults struct {
+	// Driver is the global default driver to use. For now, only sqlite3 and mysql are supported
 	Driver string
-	Hosts  map[string]HostDefaults
+
+	// Hosts maps hostnames to corresponding host-specific defaults
+	Hosts map[string]HostDefaults
 }
 
 // JobConfig contains the configuration for a single sync job
@@ -33,10 +39,14 @@ type JobConfig struct {
 	// PrimaryKeys is a list of composite primary key columns
 	PrimaryKeys []string `yaml:"primaryKeys"`
 
-	Source  TableConfig
+	// Source is the configuration for the source table (table to sync data from)
+	Source TableConfig
+
+	// Targets is a list of configurations for the target tables (tables to sync data to)
 	Targets []TableConfig
 }
 
+// HostDefaults contains the host-specific default config values
 type HostDefaults struct {
 	Label    string
 	Driver   string
