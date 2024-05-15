@@ -50,6 +50,9 @@ This executes all of the jobs in the configuration. It returns:
 
 ### PingJob
 
+> [!TIP]
+> You can use this to validate that your configuration has the correct database credentials, the tables exist, the columns exist, etc.
+
 This takes a `jobName` and a `timeout`. It attempts to "ping" the job's source and target tables-- this is a health check that ensures each table is:
 
 - reachable
