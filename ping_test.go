@@ -73,15 +73,7 @@ func TestPingAllJobs(t *testing.T) {
 
 	// We haven't yet created the tables, so we expect them all to error
 	for _, results := range allResults {
-		for i, table := range results {
-			if i == 0 {
-				// First table should be the source
-				assert.Equal(t, "source", table.Label)
-			} else {
-				// Each subsequent table should be a target
-				assert.Contains(t, table.Label, "target")
-			}
-
+		for _, table := range results {
 			assert.Error(t, table.Error)
 			assert.ErrorContains(t, table.Error, "no such table")
 		}
@@ -196,15 +188,7 @@ func TestPingAllJobs_mysql(t *testing.T) {
 
 	// We haven't yet created the tables, so we expect them all to error
 	for _, results := range allResults {
-		for i, table := range results {
-			if i == 0 {
-				// First table should be the source
-				assert.Equal(t, "source", table.Label)
-			} else {
-				// Each subsequent table should be a target
-				assert.Contains(t, table.Label, "target")
-			}
-
+		for _, table := range results {
 			assert.Error(t, table.Error)
 			assert.ErrorContains(t, table.Error, "doesn't exist")
 		}

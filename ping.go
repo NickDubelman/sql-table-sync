@@ -11,7 +11,6 @@ import (
 
 // PingResult contains the results of pinging a single table
 type PingResult struct {
-	Label  string
 	Config TableConfig
 	Error  error
 }
@@ -37,7 +36,6 @@ func (c Config) PingJob(jobName string, timeout time.Duration) ([]PingResult, er
 	}
 
 	results = append(results, PingResult{
-		Label:  sourceLabel,
 		Config: job.Source,
 		Error:  pingWithTimeout(timeout, job.Source, job.Columns),
 	})
@@ -57,7 +55,6 @@ func (c Config) PingJob(jobName string, timeout time.Duration) ([]PingResult, er
 			}
 
 			resultChan <- PingResult{
-				Label:  label,
 				Config: target,
 				Error:  pingWithTimeout(timeout, target, job.Columns),
 			}

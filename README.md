@@ -10,7 +10,8 @@ TODO:
 func main() {
     // Example config file
     const _ = `
-        driver: mysql
+        defaults:
+          driver: mysql
 
         jobs:
           users:
