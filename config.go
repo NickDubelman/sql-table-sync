@@ -147,7 +147,7 @@ func (c Config) validate() error {
 		}
 
 		if err := job.validate(); err != nil {
-			return fmt.Errorf("job '%s' %w", name, err)
+			return fmt.Errorf("job '%s': %w", name, err)
 		}
 	}
 
@@ -187,7 +187,11 @@ func (cfg JobConfig) validate() error {
 
 	// Make sure every job has a non-empty source table
 	if err := cfg.Source.validate(); err != nil {
-		return fmt.Errorf("source: %w", err)
+		label := "source"
+		if cfg.Source.Label != "" {
+			label = fmt.Sprintf(`"%s"`, cfg.Source.Label)
+		}
+		return fmt.Errorf("%s: %w", label, err)
 	}
 
 	// Make sure every job has at least one target
@@ -196,8 +200,13 @@ func (cfg JobConfig) validate() error {
 	}
 
 	for i, target := range cfg.Targets {
+		label := fmt.Sprintf("target[%d]", i)
+		if target.Label != "" {
+			label = fmt.Sprintf(`"%s"`, target.Label)
+		}
+
 		if err := target.validate(); err != nil {
-			return fmt.Errorf("target[%d]: %w", i, err)
+			return fmt.Errorf("%s: %w", label, err)
 		}
 	}
 
@@ -212,6 +221,13 @@ func (cfg TableConfig) validate() error {
 	// Make sure source specifies a driver
 	if cfg.Driver == "" {
 		return fmt.Errorf("table does not specify a driver")
+	}
+
+	// If DSN is given, make sure it is the only connection parameter
+	if cfg.DSN != "" {
+		if cfg.User != "" || cfg.Password != "" || cfg.Host != "" || cfg.Port != 0 || cfg.DB != "" {
+			return fmt.Errorf("table cannot specify DSN and other connection parameters")
+		}
 	}
 
 	return nil
