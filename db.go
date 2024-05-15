@@ -47,7 +47,7 @@ func (t *table) connect() error {
 	var err error
 	t.DB, err = sqlx.Connect(t.config.Driver, dsn)
 	if err != nil {
-		return fmt.Errorf("failed to connect to %s: %w", t.config.Label, err)
+		return fmt.Errorf("failed to connect to '%s': %w", t.config.Label, err)
 	}
 
 	t.DB.SetMaxOpenConns(5)

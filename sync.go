@@ -4,7 +4,6 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"sync"
 
 	sq "github.com/Masterminds/squirrel"
@@ -31,7 +30,7 @@ func (job JobConfig) syncTargets() (string, []SyncResult, error) {
 
 	// Connect to the source
 	if err := source.connect(); err != nil {
-		return "", nil, fmt.Errorf("failed to connect to source: %w", err)
+		return "", nil, err
 	}
 
 	targets := make([]table, len(job.Targets))
@@ -43,7 +42,10 @@ func (job JobConfig) syncTargets() (string, []SyncResult, error) {
 			columns:           job.Columns,
 		}
 
-		targets[i].connect() // Connect to each target
+		// Connect to each target
+		if err := targets[i].connect(); err != nil {
+			return "", nil, err
+		}
 	}
 
 	// Get all rows from the source table and put them in a map by their primary key
