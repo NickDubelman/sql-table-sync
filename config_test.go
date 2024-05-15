@@ -400,6 +400,16 @@ func TestValidateTableConfig(t *testing.T) {
 			},
 			expectedErr: "table does not specify a driver",
 		},
+		{
+			description: "DSN and other connection parameters",
+			table: func() TableConfig {
+				cfg := validTable()
+				cfg.DSN = "my_fake_dsn"
+				cfg.User = "nick"
+				return cfg
+			},
+			expectedErr: "table cannot specify DSN and other connection parameters",
+		},
 	}
 
 	for _, tc := range testCases {

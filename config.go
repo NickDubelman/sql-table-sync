@@ -214,6 +214,13 @@ func (cfg TableConfig) validate() error {
 		return fmt.Errorf("table does not specify a driver")
 	}
 
+	// If DSN is given, make sure it is the only connection parameter
+	if cfg.DSN != "" {
+		if cfg.User != "" || cfg.Password != "" || cfg.Host != "" || cfg.Port != 0 || cfg.DB != "" {
+			return fmt.Errorf("table cannot specify DSN and other connection parameters")
+		}
+	}
+
 	return nil
 }
 
