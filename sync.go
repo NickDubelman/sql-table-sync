@@ -54,6 +54,9 @@ func (job JobConfig) syncTargets() (string, []SyncResult, error) {
 		return "", nil, err
 	}
 
+	// Close the source connection pool
+	source.Close()
+
 	sourceChecksum, err := checksumData(sourceEntries)
 	if err != nil {
 		return "", nil, err
@@ -68,6 +71,7 @@ func (job JobConfig) syncTargets() (string, []SyncResult, error) {
 			defer wg.Done()
 
 			checksum, synced, err := target.syncTarget(sourceChecksum, sourceMap)
+			target.Close() // Close the target's connection pool
 
 			resultChan <- SyncResult{
 				Target:         target.config,
