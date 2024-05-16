@@ -101,7 +101,6 @@ func TestLoadConfig(t *testing.T) {
                   table: users
                 targets:
                   - host: host2
-                    table: users
                   - host: host3
                     dsn: host3_dsn
                     table: users
@@ -124,9 +123,17 @@ func TestLoadConfig(t *testing.T) {
                     table: pets
                   - port: 1234
                     table: pets
+
+              posts:
+                columns: [id, title, body]
+                source:
+                  dsn: posts_dsn
+                  table: posts
+                targets:
+                  - dsn: posts_dsn2
         `)
 		require.NoError(t, err)
-		require.Len(t, cfg.Jobs, 2)
+		require.Len(t, cfg.Jobs, 3)
 
 		usersJobName := "users"
 		require.Contains(t, cfg.Jobs, usersJobName)
@@ -135,6 +142,10 @@ func TestLoadConfig(t *testing.T) {
 		petsJobName := "pets"
 		require.Contains(t, cfg.Jobs, petsJobName)
 		petsJob := cfg.Jobs[petsJobName]
+
+		postsJobName := "posts"
+		require.Contains(t, cfg.Jobs, postsJobName)
+		postsJob := cfg.Jobs[postsJobName]
 
 		assert.Equal(t, "host1:3369", usersJob.Source.Label)
 		assert.Equal(t, "mysql", usersJob.Source.Driver)
@@ -146,6 +157,8 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "host2_dsn", usersJob.Targets[0].Label)
 		assert.Equal(t, "postgres", usersJob.Targets[0].Driver)
 		assert.Equal(t, "host2_dsn", usersJob.Targets[0].DSN)
+		// Make sure target's table defaults to source's table when hosts are different
+		assert.Equal(t, "users", usersJob.Targets[0].Table)
 
 		assert.Equal(t, "host3_label", usersJob.Targets[1].Label)
 		assert.Equal(t, "sqlite3", usersJob.Targets[1].Driver)
@@ -169,6 +182,12 @@ func TestLoadConfig(t *testing.T) {
 
 		assert.Equal(t, "host4", petsJob.Targets[2].Label)
 		assert.Equal(t, ":1234", petsJob.Targets[3].Label)
+
+		// Make sure target defaults to same table name as source when DSNs are different
+		assert.Equal(t, "posts_dsn", postsJob.Source.DSN)
+		assert.Equal(t, "posts", postsJob.Source.Table)
+		assert.Equal(t, "posts_dsn2", postsJob.Targets[0].DSN)
+		assert.Equal(t, "posts", postsJob.Targets[0].Table)
 	})
 }
 

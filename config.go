@@ -121,11 +121,33 @@ func loadConfig(fileContents string) (Config, error) {
 			job.PrimaryKeys = []string{job.PrimaryKey}
 		}
 
-		// If host is given, check to see if there is an entry in the credential map
+		// Impose default credentials on the source and target tables
 		job.Source = imposeDefaultCredentials(job.Source, config.Defaults)
+
+		sourceHasDSN := job.Source.DSN != ""
+		sourceHasHost := job.Source.Host != ""
 
 		for j := range job.Targets {
 			job.Targets[j] = imposeDefaultCredentials(job.Targets[j], config.Defaults)
+
+			targetHasDSN := job.Targets[j].DSN != ""
+			targetHasHost := job.Targets[j].Host != ""
+			hasDifferentDSN := job.Source.DSN != job.Targets[j].DSN
+			hasDifferentHost := job.Source.Host != job.Targets[j].Host
+
+			if sourceHasDSN && targetHasDSN && hasDifferentDSN {
+				// If the source and target both have DSNs and they are different, default target
+				// table to same as source table
+				if job.Targets[j].Table == "" {
+					job.Targets[j].Table = job.Source.Table
+				}
+			} else if sourceHasHost && targetHasHost && hasDifferentHost {
+				// If the source and target both have hosts and they are different, default target
+				// table to same as source table
+				if job.Targets[j].Table == "" {
+					job.Targets[j].Table = job.Source.Table
+				}
+			}
 		}
 
 		config.Jobs[jobName] = job // Update the map
