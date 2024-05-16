@@ -134,8 +134,11 @@ sql-table-sync exec users pets posts
 # Exec all jobs
 sql-table-sync exec
 
-# Ping a single job
+# Ping a single job (with default 10s timeout)
 sql-table-sync ping users
+
+# Ping a single job (with custom timeout)
+sql-table-sync ping users --timeout 5s
 
 # Ping multiple jobs
 sql-table-sync ping users pets posts
