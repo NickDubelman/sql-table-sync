@@ -79,7 +79,8 @@ func TestLoadConfig(t *testing.T) {
             defaults:
               driver: sqlite3
               
-              sourceHost: host1
+              source:
+                  host: host1
 
               hosts:
                 host1:
@@ -198,32 +199,155 @@ func TestLoadConfig(t *testing.T) {
 		assert.Empty(t, postsJob.Source.Host)
 	})
 
-	t.Run("default source and target hosts", func(t *testing.T) {
+	t.Run("default source and targets", func(t *testing.T) {
+		cfg, err := loadConfig(`
+            defaults:              
+              source:
+                host: host1
+                label: source_label
+                driver: host1_driver
+                user: host1_user
+                password: host1_pass
+                port: 1
+                db: host1_db
+
+              targets:
+                - dsn: host2_dsn
+                  label: host2_label
+                  driver: host2_driver
+                - host: host3
+                  label: host3_label
+                  driver: host3_driver
+                  user: host3_user
+                  password: host3_pass
+                  port: 3
+                  db: host3_db
+
+            jobs:
+              users:
+                columns: [id, name, age]
+                source:
+                  table: users
+
+              pets:
+                columns: [id, name, userID]
+                source:
+                  host: host1_override
+                  label: source_label_override
+                  driver: host1_driver_override
+                  user: host1_user_override
+                  password: host1_pass_override
+                  port: 42069
+                  db: host1_db_override
+                  table: pets
+                targets:
+                  - dsn: target2_override
+                  - dsn: target3_override
+                  - dsn: target4_override
+                  - dsn: target5_override
+                  
+        `)
+		require.NoError(t, err)
+		require.Len(t, cfg.Jobs, 2)
+
+		usersJobName := "users"
+		require.Contains(t, cfg.Jobs, usersJobName)
+		usersJob := cfg.Jobs[usersJobName]
+
+		petsJobName := "pets"
+		require.Contains(t, cfg.Jobs, petsJobName)
+		petsJob := cfg.Jobs[petsJobName]
+
+		// Users job should get default source host
+		assert.Equal(t, "host1", usersJob.Source.Host)
+		assert.Equal(t, "source_label", usersJob.Source.Label)
+		assert.Equal(t, "host1_driver", usersJob.Source.Driver)
+		assert.Equal(t, "host1_user", usersJob.Source.User)
+		assert.Equal(t, "host1_pass", usersJob.Source.Password)
+		assert.Equal(t, 1, usersJob.Source.Port)
+		assert.Equal(t, "host1_db", usersJob.Source.DB)
+
+		// Users job should get default targets
+		require.Len(t, usersJob.Targets, 2)
+
+		// Host2 target should get its values from defaults.targets[0]
+		assert.Empty(t, usersJob.Targets[0].Host)
+		assert.Equal(t, "host2_label", usersJob.Targets[0].Label)
+		assert.Equal(t, "host2_driver", usersJob.Targets[0].Driver)
+		assert.Equal(t, "host2_dsn", usersJob.Targets[0].DSN)
+
+		// Host3 target should get its values from defaults.targets[1]
+		assert.Equal(t, "host3", usersJob.Targets[1].Host)
+		assert.Equal(t, "host3_label", usersJob.Targets[1].Label)
+		assert.Equal(t, "host3_driver", usersJob.Targets[1].Driver)
+		assert.Equal(t, "host3_user", usersJob.Targets[1].User)
+		assert.Equal(t, "host3_pass", usersJob.Targets[1].Password)
+		assert.Equal(t, 3, usersJob.Targets[1].Port)
+		assert.Equal(t, "host3_db", usersJob.Targets[1].DB)
+
+		// Pets job should get overridden source host
+		assert.Equal(t, "host1_override", petsJob.Source.Host)
+		assert.Equal(t, "source_label_override", petsJob.Source.Label)
+		assert.Equal(t, "host1_driver_override", petsJob.Source.Driver)
+		assert.Equal(t, "host1_user_override", petsJob.Source.User)
+		assert.Equal(t, "host1_pass_override", petsJob.Source.Password)
+		assert.Equal(t, 42069, petsJob.Source.Port)
+		assert.Equal(t, "host1_db_override", petsJob.Source.DB)
+		assert.Equal(t, "pets", petsJob.Source.Table)
+
+		// Pets job should get overridden targets
+		require.Len(t, petsJob.Targets, 4)
+		assert.Equal(t, "target2_override", petsJob.Targets[0].DSN)
+		assert.Equal(t, "target3_override", petsJob.Targets[1].DSN)
+		assert.Equal(t, "target4_override", petsJob.Targets[2].DSN)
+		assert.Equal(t, "target5_override", petsJob.Targets[3].DSN)
+	})
+
+	t.Run("default source and targets (with default hosts)", func(t *testing.T) {
 		cfg, err := loadConfig(`
             defaults:
               driver: sqlite3
               
-              sourceHost: host1
+              source:
+                # These should override the stuff specified in hosts.host1
+                host: host1
+                label: source_label
+                driver: host1_driver
+                user: host1_user
+                password: host1_pass
+                port: 42069
+                db: host1_db
 
-              targetHosts:
-                - host2
-                - host3
+              targets:
+                - host: host2
+                - host: host3
+                  label: host3_label
+                  driver: host3_driver
+                  user: host3_user
+                  password: host3_pass
+                  port: 3
+                  db: host3_db
 
               hosts:
                 host1:
-                    driver: mysql
-                    user: user1
-                    password: pass1
-                    port: 3369
-                    db: appdb
+                  driver: mysql
+                  user: user1
+                  password: pass1
+                  port: 3369
+                  db: appdb
                 host2:
-                    driver: postgres
+                  label: host2_label
+                  driver: postgres
+                  user: user2
+                  password: pass2
+                  port: 2
+                  db: host2_db
                 host3:
-                    label: host3_label
-                    port: 69420
-                    user: user3
-                    password: pass3
-                    db: host3_db
+                  label: host3_label_not_used
+                  port: 69420
+                  user: user3_not_used
+                  password: pass3_not_used
+                  db: host3_db_not_used
 
             jobs:
               users:
@@ -264,16 +388,33 @@ func TestLoadConfig(t *testing.T) {
 		// Users job should get default source host
 		assert.Equal(t, "host1", usersJob.Source.Host)
 
+		// Users job source should get its values from defaults.source, not defaults.hosts.host1
+		assert.Equal(t, "source_label", usersJob.Source.Label)
+		assert.Equal(t, "host1_driver", usersJob.Source.Driver)
+		assert.Equal(t, "host1_user", usersJob.Source.User)
+		assert.Equal(t, "host1_pass", usersJob.Source.Password)
+		assert.Equal(t, 42069, usersJob.Source.Port)
+		assert.Equal(t, "host1_db", usersJob.Source.DB)
+
 		// Users job should get default targets
 		require.Len(t, usersJob.Targets, 2)
 
+		// Host2 target should get its values from defaults.hosts.host2
 		assert.Equal(t, "host2", usersJob.Targets[0].Host)
+		assert.Equal(t, "host2_label", usersJob.Targets[0].Label)
 		assert.Equal(t, "postgres", usersJob.Targets[0].Driver)
+		assert.Equal(t, "user2", usersJob.Targets[0].User)
+		assert.Equal(t, "pass2", usersJob.Targets[0].Password)
+		assert.Equal(t, 2, usersJob.Targets[0].Port)
+		assert.Equal(t, "host2_db", usersJob.Targets[0].DB)
 
+		// Host3 target should get its values from defaults.targets[1], not defaults.hosts.host3
 		assert.Equal(t, "host3", usersJob.Targets[1].Host)
-		assert.Equal(t, "user3", usersJob.Targets[1].User)
-		assert.Equal(t, "pass3", usersJob.Targets[1].Password)
-		assert.Equal(t, 69420, usersJob.Targets[1].Port)
+		assert.Equal(t, "host3_label", usersJob.Targets[1].Label)
+		assert.Equal(t, "host3_driver", usersJob.Targets[1].Driver)
+		assert.Equal(t, "host3_user", usersJob.Targets[1].User)
+		assert.Equal(t, "host3_pass", usersJob.Targets[1].Password)
+		assert.Equal(t, 3, usersJob.Targets[1].Port)
 		assert.Equal(t, "host3_db", usersJob.Targets[1].DB)
 
 		// Pets job should not get default source host (because it has a DSN)

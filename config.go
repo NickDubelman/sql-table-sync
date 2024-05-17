@@ -23,11 +23,12 @@ type ConfigDefaults struct {
 	// Hosts maps hostnames to corresponding host-specific defaults
 	Hosts map[string]HostDefaults
 
-	// SourceHost is the default source host to use
-	SourceHost string `yaml:"sourceHost"`
+	// Source is the default source to use if a job does not specify one
+	Source *SourceTargetDefault
 
-	// TargetHosts is the default list of target hosts to use
-	TargetHosts []string `yaml:"targetHosts"`
+	// Targets are the default targets to use if a job does not specify any. This can only be used
+	// if each target has the same table as the source
+	Targets []SourceTargetDefault
 }
 
 // JobConfig contains the configuration for a single sync job
@@ -57,6 +58,18 @@ type HostDefaults struct {
 	Label    string
 	Driver   string
 	DSN      string
+	User     string
+	Password string
+	Port     int
+	DB       string
+}
+
+// SourceTargetDefault contains the default values for a source or target table
+type SourceTargetDefault struct {
+	DSN      string
+	Host     string
+	Label    string
+	Driver   string
 	User     string
 	Password string
 	Port     int
@@ -131,21 +144,60 @@ func loadConfig(fileContents string) (Config, error) {
 		sourceHasDSN := job.Source.DSN != ""
 		sourceHasHost := job.Source.Host != ""
 
-		// If the Source does not provide a DSN or a Host, use the default host
-		if !sourceHasDSN && !sourceHasHost {
-			job.Source.Host = config.Defaults.SourceHost
+		// If source does not have DSN or Host, and a default source is provided, apply the values
+		if !sourceHasDSN && !sourceHasHost && config.Defaults.Source != nil {
+			if job.Source.Label == "" {
+				job.Source.Label = config.Defaults.Source.Label
+			}
+
+			if job.Source.Driver == "" {
+				job.Source.Driver = config.Defaults.Source.Driver
+			}
+
+			if job.Source.DSN == "" {
+				job.Source.DSN = config.Defaults.Source.DSN
+			}
+
+			if job.Source.User == "" {
+				job.Source.User = config.Defaults.Source.User
+			}
+
+			if job.Source.Password == "" {
+				job.Source.Password = config.Defaults.Source.Password
+			}
+
+			if job.Source.Host == "" {
+				job.Source.Host = config.Defaults.Source.Host
+			}
+
+			if job.Source.Port == 0 {
+				job.Source.Port = config.Defaults.Source.Port
+			}
+
+			if job.Source.DB == "" {
+				job.Source.DB = config.Defaults.Source.DB
+			}
 		}
 
 		job.Source = imposeTableDefaults(job.Source, config.Defaults)
 
-		// Impose default credentials on each target
 		// If there are no targets, initialize a list of targets with the default target hosts
 		if len(job.Targets) == 0 {
-			for _, targetHost := range config.Defaults.TargetHosts {
-				job.Targets = append(job.Targets, TableConfig{Host: targetHost})
+			for _, targetHost := range config.Defaults.Targets {
+				job.Targets = append(job.Targets, TableConfig{
+					Label:    targetHost.Label,
+					Driver:   targetHost.Driver,
+					DSN:      targetHost.DSN,
+					User:     targetHost.User,
+					Password: targetHost.Password,
+					Host:     targetHost.Host,
+					Port:     targetHost.Port,
+					DB:       targetHost.DB,
+				})
 			}
 		}
 
+		// Impose default credentials on each target
 		for j := range job.Targets {
 			job.Targets[j] = imposeTableDefaults(job.Targets[j], config.Defaults)
 
@@ -274,10 +326,7 @@ func (cfg TableConfig) validate() error {
 	return nil
 }
 
-func imposeTableDefaults(
-	table TableConfig,
-	defaults ConfigDefaults,
-) TableConfig {
+func imposeTableDefaults(table TableConfig, defaults ConfigDefaults) TableConfig {
 	var hostDefaults HostDefaults
 	if table.Host != "" {
 		hostDefaults = defaults.Hosts[table.Host]
