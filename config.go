@@ -201,6 +201,8 @@ func loadConfig(fileContents string) (Config, error) {
 		for j := range job.Targets {
 			job.Targets[j] = imposeTableDefaults(job.Targets[j], config.Defaults)
 
+			sourceHasDSN := job.Source.DSN != ""
+			sourceHasHost := job.Source.Host != ""
 			targetHasDSN := job.Targets[j].DSN != ""
 			targetHasHost := job.Targets[j].Host != ""
 			hasDifferentDSN := job.Source.DSN != job.Targets[j].DSN
