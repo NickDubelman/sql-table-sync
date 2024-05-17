@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -20,10 +21,14 @@ var execCmd = &cobra.Command{
 		if len(args) == 0 {
 			results, errs := config.ExecAllJobs()
 
-			first := true
+			var jobNames []string
 			for jobName := range config.Jobs {
-				if !first {
-					first = false
+				jobNames = append(jobNames, jobName)
+			}
+			slices.Sort(jobNames) // Sort the job names so the output is deterministic
+
+			for i, jobName := range jobNames {
+				if i != 0 {
 					fmt.Println() // Add a newline between job results
 				}
 

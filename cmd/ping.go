@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"slices"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -9,8 +11,13 @@ import (
 	sync "github.com/NickDubelman/sql-table-sync"
 )
 
+var pingTimeoutStr string
+
 func init() {
 	rootCmd.AddCommand(pingCmd)
+	pingCmd.Flags().StringVarP(
+		&pingTimeoutStr, "timeout", "t", "10s", "timeout for pinging each table",
+	)
 }
 
 var pingCmd = &cobra.Command{
@@ -18,17 +25,27 @@ var pingCmd = &cobra.Command{
 	Short: "Pings the given sync jobs",
 	Long:  "Pings the given sync jobs to see which databases are reachable. If no positional args are provided, pings all jobs.",
 	Run: func(cmd *cobra.Command, args []string) {
+		timeout, err := time.ParseDuration(pingTimeoutStr)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
 		if len(args) == 0 {
-			allResults, err := config.PingAllJobs(30 * time.Second)
+			allResults, err := config.PingAllJobs(timeout)
 			if err != nil {
 				fmt.Println(err)
-				return
+				os.Exit(1)
 			}
 
-			first := true
+			var jobNames []string
 			for jobName := range config.Jobs {
-				if !first {
-					first = false
+				jobNames = append(jobNames, jobName)
+			}
+			slices.Sort(jobNames) // Sort the job names so the output is deterministic
+
+			for i, jobName := range jobNames {
+				if i != 0 {
 					fmt.Println() // Add a newline between job results
 				}
 
@@ -40,7 +57,7 @@ var pingCmd = &cobra.Command{
 					fmt.Println() // Add a newline between job results
 				}
 
-				results, err := config.PingJob(jobName, 30*time.Second)
+				results, err := config.PingJob(jobName, timeout)
 				printPingOutput(jobName, results, err)
 			}
 		}

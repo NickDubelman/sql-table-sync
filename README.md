@@ -134,8 +134,11 @@ sql-table-sync exec users pets posts
 # Exec all jobs
 sql-table-sync exec
 
-# Ping a single job
+# Ping a single job (with default 10s timeout)
 sql-table-sync ping users
+
+# Ping a single job (with custom timeout)
+sql-table-sync ping users --timeout 5s
 
 # Ping multiple jobs
 sql-table-sync ping users pets posts
@@ -170,7 +173,7 @@ A config file consists of two top-level sections: `defaults` (optional) and `job
 
 ### User-provided defaults
 
-The `defaults` section allows you to specify your own custom default values. These can either be global (affects all jobs) or host-specific (affects only jobs with a matching host).
+The `defaults` section allows you to specify your own custom default values. These can either be global (affects all jobs) or host-specific (affects only jobs with a matching host). You can also specify a default `source` and default `targets`.
 
 #### Global Defaults
 
@@ -187,6 +190,20 @@ In the `defaults` section, you can specify `hosts` which is a mapping of hostnam
 - `password` is the password for the database connection.
 - `port` is the port for the database connection.
 - `db` is the name of the database.
+
+#### Default Source
+
+In the `defaults` section, you can specify `source`. This specifies the default db connection parameters (DSN, host, port, etc) but does NOT include the table-- so each job must still specify a `source.table`.
+
+> [!WARNING]  
+> When using `defaults.source`, you must still specify a `source.table` for each job.
+
+#### Default Targets
+
+In the `defaults` section, you can specify `targets`. This allows you to omit the `targets` section in each job definition. This can only be used if each target table has the same name as the source table.
+
+> [!WARNING]  
+> When using `defaults.targets`, each target table must have the same name as the source table.
 
 ## Sync Algorithm
 

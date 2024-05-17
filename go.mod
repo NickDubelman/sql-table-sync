@@ -5,7 +5,6 @@ go 1.22.1
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/go-sql-driver/mysql v1.8.1
-	github.com/google/go-cmp v0.6.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/spf13/cobra v1.8.0

@@ -49,11 +49,6 @@ func (c Config) PingJob(jobName string, timeout time.Duration) ([]PingResult, er
 		go func(j int, target TableConfig) {
 			defer wg.Done()
 
-			label := target.Label
-			if label == "" {
-				label = fmt.Sprintf("target %d", j)
-			}
-
 			resultChan <- PingResult{
 				Config: target,
 				Error:  pingWithTimeout(timeout, target, job.Columns),
