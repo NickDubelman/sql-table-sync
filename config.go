@@ -22,6 +22,12 @@ type ConfigDefaults struct {
 
 	// Hosts maps hostnames to corresponding host-specific defaults
 	Hosts map[string]HostDefaults
+
+	// SourceHost is the default source host to use
+	SourceHost string `yaml:"sourceHost"`
+
+	// TargetHosts is the default list of target hosts to use
+	TargetHosts []string `yaml:"targetHosts"`
 }
 
 // JobConfig contains the configuration for a single sync job
@@ -121,14 +127,27 @@ func loadConfig(fileContents string) (Config, error) {
 			job.PrimaryKeys = []string{job.PrimaryKey}
 		}
 
-		// Impose default credentials on the source and target tables
-		job.Source = imposeDefaultCredentials(job.Source, config.Defaults)
-
+		// Impose default credentials on the source
 		sourceHasDSN := job.Source.DSN != ""
 		sourceHasHost := job.Source.Host != ""
 
+		// If the Source does not provide a DSN or a Host, use the default host
+		if !sourceHasDSN && !sourceHasHost {
+			job.Source.Host = config.Defaults.SourceHost
+		}
+
+		job.Source = imposeTableDefaults(job.Source, config.Defaults)
+
+		// Impose default credentials on each target
+		// If there are no targets, initialize a list of targets with the default target hosts
+		if len(job.Targets) == 0 {
+			for _, targetHost := range config.Defaults.TargetHosts {
+				job.Targets = append(job.Targets, TableConfig{Host: targetHost})
+			}
+		}
+
 		for j := range job.Targets {
-			job.Targets[j] = imposeDefaultCredentials(job.Targets[j], config.Defaults)
+			job.Targets[j] = imposeTableDefaults(job.Targets[j], config.Defaults)
 
 			targetHasDSN := job.Targets[j].DSN != ""
 			targetHasHost := job.Targets[j].Host != ""
@@ -255,7 +274,7 @@ func (cfg TableConfig) validate() error {
 	return nil
 }
 
-func imposeDefaultCredentials(
+func imposeTableDefaults(
 	table TableConfig,
 	defaults ConfigDefaults,
 ) TableConfig {
