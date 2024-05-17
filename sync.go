@@ -4,10 +4,10 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"reflect"
 	"sync"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/google/go-cmp/cmp"
 )
 
 // SyncResult contains the results of syncing a single target table
@@ -130,7 +130,7 @@ func (t table) syncTarget(
 			// Remove the key from the targetMap (to keep track of which rows we need to delete)
 			delete(targetMap, key)
 
-			if cmp.Equal(val, targetMap[key]) {
+			if reflect.DeepEqual(val, targetMap[key]) {
 				continue // No diff, so we skip this row
 			}
 
