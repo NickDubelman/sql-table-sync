@@ -41,11 +41,6 @@ func (job JobConfig) syncTargets() (string, []SyncResult, error) {
 			primaryKeyIndices: primaryKeyIndices,
 			columns:           job.Columns,
 		}
-
-		// Connect to each target
-		if err := targets[i].connect(); err != nil {
-			return "", nil, err
-		}
 	}
 
 	// Get all rows from the source table and put them in a map by their primary key
@@ -69,6 +64,15 @@ func (job JobConfig) syncTargets() (string, []SyncResult, error) {
 		wg.Add(1)
 		go func(target table) {
 			defer wg.Done()
+
+			// Connect to each target
+			if err := target.connect(); err != nil {
+				resultChan <- SyncResult{
+					Target: target.config,
+					Error:  err,
+				}
+				return
+			}
 
 			checksum, synced, err := target.syncTarget(sourceChecksum, sourceMap)
 			target.Close() // Close the target's connection pool
