@@ -119,15 +119,16 @@ func (t table) syncTarget(
 
 	tableName := t.config.Table
 
+	var inserts []sq.InsertBuilder
+	var updates []sq.UpdateBuilder
+	var deletes []sq.DeleteBuilder
+
 	// Iterate over source rows and perform INSERTs or UPDATEs as needed
 	for key, val := range sourceMap {
 		// If the key doesn't exist in targetMap, then we need to INSERT
 		if _, ok := targetMap[key]; !ok {
 			insert := sq.Insert(tableName).Columns(t.columns...).Values(val...)
-
-			if _, err := insert.RunWith(t.DB).Exec(); err != nil {
-				return "", false, err
-			}
+			inserts = append(inserts, insert)
 		} else {
 			// If the key exists in targetMap, then we need to check if there is a diff
 
@@ -156,9 +157,7 @@ func (t table) syncTarget(
 				update = update.Set(col, val[i])
 			}
 
-			if _, err := update.RunWith(t.DB).Exec(); err != nil {
-				return "", false, err
-			}
+			updates = append(updates, update)
 		}
 	}
 
@@ -168,7 +167,24 @@ func (t table) syncTarget(
 			Delete(tableName).
 			Where(key.whereClause(t.primaryKeys, t.primaryKeyIndices))
 
+		deletes = append(deletes, delete)
+	}
+
+	// Actually execute the statements (DELETEs -> UPDATEs -> INSERTs)
+	for _, delete := range deletes {
 		if _, err := delete.RunWith(t.DB).Exec(); err != nil {
+			return "", false, err
+		}
+	}
+
+	for _, update := range updates {
+		if _, err := update.RunWith(t.DB).Exec(); err != nil {
+			return "", false, err
+		}
+	}
+
+	for _, insert := range inserts {
+		if _, err := insert.RunWith(t.DB).Exec(); err != nil {
 			return "", false, err
 		}
 	}
