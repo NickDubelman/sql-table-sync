@@ -149,15 +149,19 @@ func (t table) syncTarget(
 				pkSet[pk] = struct{}{}
 			}
 
+			var hasUpdate bool
 			for i, col := range t.columns {
 				if _, ok := pkSet[col]; ok {
 					continue // Skip updating primary key columns
 				}
 
 				update = update.Set(col, val[i])
+				hasUpdate = true
 			}
 
-			updates = append(updates, update)
+			if hasUpdate {
+				updates = append(updates, update)
+			}
 		}
 	}
 
