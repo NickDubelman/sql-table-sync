@@ -20,6 +20,19 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      maria:
+        image: mariadb:10.6
+        env:
+          MYSQL_DATABASE: ci_tests
+          MYSQL_ALLOW_EMPTY_PASSWORD: '1'
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd "mysqladmin ping"
+          --health-interval 20s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -32,4 +45,6 @@ jobs:
         env:
           MYSQL_DB_PORT: 3306
           MYSQL_DB_NAME: ci_tests
+          MARIADB_DB_PORT: 3307
+          MARIADB_DB_NAME: ci_tests
         run: go test -v ./...
