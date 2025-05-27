@@ -142,7 +142,7 @@ func (t table) syncTarget(
 			// There is a diff, perform an UPDATE
 			update := sq.
 				Update(tableName).
-				Where(key.whereClause(t.primaryKeys, t.primaryKeyIndices))
+				Where(key.whereClause(t.columns, t.primaryKeyIndices))
 
 			pkSet := map[string]struct{}{}
 			for _, pk := range t.primaryKeys {
@@ -169,7 +169,7 @@ func (t table) syncTarget(
 	for key := range targetMap {
 		delete := sq.
 			Delete(tableName).
-			Where(key.whereClause(t.primaryKeys, t.primaryKeyIndices))
+			Where(key.whereClause(t.columns, t.primaryKeyIndices))
 
 		deletes = append(deletes, delete)
 	}
@@ -294,11 +294,11 @@ func (job JobConfig) getPrimaryKeyIndices() []int {
 // For now, we limit to a maximum of 3 primary key columns
 type primaryKeyTuple struct{ First, Second, Third any }
 
-func (key primaryKeyTuple) whereClause(primaryKeys []string, primaryKeyIndices []int) sq.Eq {
+func (key primaryKeyTuple) whereClause(columns []string, primaryKeyIndices []int) sq.Eq {
 	where := sq.Eq{}
 
 	for i, idx := range primaryKeyIndices {
-		columnName := primaryKeys[idx]
+		columnName := columns[idx]
 
 		switch i {
 		case 0:
