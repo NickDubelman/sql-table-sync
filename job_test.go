@@ -204,37 +204,72 @@ func TestExecJob_multiple_primary_key(t *testing.T) {
 	}
 
 	results, err := config.ExecJob("users")
-	require.NoError(t, err)
-	require.Len(t, results.Results, 1)
 
-	for _, result := range results.Results {
-		assert.NoError(t, result.Error)
-		assert.True(t, result.Synced)
-	}
-
-	// Check that the data was copied to the target
-	order := strings.Join(primaryKeys, ", ")
-	rows, err := target1.Queryx("SELECT * FROM users ORDER BY " + order)
-	require.NoError(t, err)
-
-	defer rows.Close()
-
-	var data [][]any
-	for rows.Next() {
-		cols, err := rows.SliceScan()
+	validateSync := func() {
 		require.NoError(t, err)
-		data = append(data, cols)
-	}
+		require.Len(t, results.Results, 1)
 
-	require.Equal(t, len(expectedData), len(data))
+		for _, result := range results.Results {
+			assert.NoError(t, result.Error)
+			assert.True(t, result.Synced)
+		}
 
-	// Make sure the data is correct
-	for i := range expectedData {
-		require.Len(t, data[i], len(expectedData[i]))
-		for j := range expectedData[i] {
-			require.EqualValues(t, expectedData[i][j], data[i][j])
+		// Check that the data was copied to the target
+		order := strings.Join(primaryKeys, ", ")
+		rows, err := target1.Queryx("SELECT * FROM users ORDER BY " + order)
+		require.NoError(t, err)
+
+		defer rows.Close()
+
+		var data [][]any
+		for rows.Next() {
+			cols, err := rows.SliceScan()
+			require.NoError(t, err)
+			data = append(data, cols)
+		}
+
+		require.Equal(t, len(expectedData), len(data))
+
+		// Make sure the data is correct
+		for i := range expectedData {
+			require.Len(t, data[i], len(expectedData[i]))
+			for j := range expectedData[i] {
+				require.EqualValues(t, expectedData[i][j], data[i][j])
+			}
 		}
 	}
+
+	validateSync()
+
+	// Make sure the multiple PK works when the PK columns aren't the first columns
+	// Set the target1 data so that it requires a sync with inserts, updates. and deletes
+	delete := sq.Delete(target1Config.Table)
+	sql, args, err = delete.ToSql()
+	require.NoError(t, err)
+	target1.MustExec(sql, args...)
+
+	insert = sq.Insert(target1Config.Table).Columns("name", "age", "favoriteColor")
+	insert = insert.Values("Alice", 30, "purpz") // needs to be updated
+	insert = insert.Values("Nick", 420, "purpz") // needs to be deleted
+	sql, args, err = insert.ToSql()
+	require.NoError(t, err)
+	target1.MustExec(sql, args...)
+
+	config = Config{
+		Jobs: map[string]JobConfig{
+			"users": {
+				PrimaryKeys: primaryKeys,
+				Columns:     []string{"name", "favoriteColor", "age"}, // Age is at the end
+				Source:      sourceConfig,
+				Targets:     []TableConfig{target1Config},
+			},
+		},
+	}
+
+	results, err = config.ExecJob("users")
+	require.NoError(t, err)
+
+	validateSync()
 }
 
 func TestExecJob_mysql(t *testing.T) {
